@@ -12,3 +12,13 @@ Foreign keys and indexes support source-to-dataset lookup, recent run queries, a
 
 The model leaves clear extension points for future `quality_results`, `incidents`, `lineage_edges`, and `drift_results` tables. Those tables are not created until their Phase 2 contracts are designed.
 
+## Phase 2 quality tables
+
+The Phase 2 migration adds:
+
+- `quality_rules`, which stores dataset-scoped rule identity, dimension, rule type, severity, enabled state, and JSON configuration. Executable code is never stored in the database.
+- `quality_evaluation_runs`, which records the terminal lifecycle, trigger, per-status counts, optional score, and sanitized engine errors.
+- `quality_results`, which links a rule to an evaluation run and stores status, observed/expected JSON values, affected/evaluated record counts, details, and evaluation time.
+
+The score is denormalized on `quality_evaluation_runs` for efficient dashboard reads; individual `quality_results` remain authoritative. Foreign keys and unique `(evaluation_run_id, rule_id)` prevent orphaned or repeated results within one evaluation.
+

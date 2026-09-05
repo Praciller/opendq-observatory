@@ -1,0 +1,4 @@
+[
+  {"observed_at": "2026-09-06T11:30:00Z", "fields": {"event_id": "fixture-a", "latitude": 13.7, "longitude": 100.5, "magnitude": 4.2, "depth_km": 12.0}},
+  {"observed_at": "2026-09-06T12:00:00Z", "fields": {"event_id": "fixture-b", "latitude": -20.0, "longitude": 140.0, "magnitude": 2.1, "depth_km": 80.0}}
+]
