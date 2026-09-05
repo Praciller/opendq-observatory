@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { getIncidents } from "../lib/incidents";
 import { getQualitySummaries, type QualityStatus } from "../lib/quality";
 import { buildHealthResponse, getSourceStatuses, type HealthResponse } from "../lib/status";
 
@@ -43,6 +44,7 @@ export default async function Home() {
   const health = await buildHealthResponse();
   const sources = await getSourceStatuses();
   const quality = await getQualitySummaries();
+  const incidents = await getIncidents({ status: "open" });
 
   return (
     <main className="shell">
@@ -122,7 +124,14 @@ export default async function Home() {
         )}
       </section>
 
-      <footer>Phase 2 · Deterministic quality checks · No fabricated operational metrics</footer>
+      <section className="panel" aria-labelledby="incidents-heading">
+        <div className="section-heading"><div><p className="eyebrow">Deterministic operations</p><h2 id="incidents-heading">Open Incidents</h2></div><Link className="text-link" href="/incidents">View history</Link></div>
+        {incidents.incidents.length === 0 ? <div className="empty-state"><strong>{incidents.message ?? "No incidents detected"}</strong><span>Quality evidence has not produced an active operational incident.</span></div> : <div className="incident-summary-list">{incidents.incidents.slice(0, 3).map((incident) => <Link className="incident-summary-row" href={`/incidents/${incident.id}`} key={incident.id}><span><strong>{incident.datasetName}</strong><small>{incident.ruleName}</small></span><span className={`status-pill incident-${incident.status.toLowerCase()}`}>{incident.severity}</span></Link>)}</div>}
+      </section>
+
+      <section className="panel quick-links"><Link className="text-link" href="/quality">Data quality →</Link><Link className="text-link" href="/lineage">Lineage →</Link><Link className="text-link" href="/incidents">Incidents →</Link></section>
+
+      <footer>Phase 3 · Deterministic quality, incidents, and lineage · No fabricated operational metrics</footer>
     </main>
   );
 }

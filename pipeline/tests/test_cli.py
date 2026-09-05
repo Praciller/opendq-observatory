@@ -25,3 +25,25 @@ def test_cli_exposes_quality_evaluation_for_all_datasets() -> None:
     assert args.command == "quality"
     assert args.quality_command == "evaluate"
     assert args.dataset == "all"
+
+
+def test_cli_exposes_read_only_incident_and_lineage_commands() -> None:
+    incident = build_parser().parse_args(["incident", "list", "--status", "open"])
+    lineage = build_parser().parse_args(["lineage", "impact", "open-meteo"])
+
+    assert (incident.command, incident.incident_command, incident.status) == (
+        "incident",
+        "list",
+        "open",
+    )
+    assert (lineage.command, lineage.lineage_command, lineage.dataset) == (
+        "lineage",
+        "impact",
+        "open-meteo",
+    )
+
+
+def test_cli_exposes_trusted_lineage_seed() -> None:
+    args = build_parser().parse_args(["lineage", "seed"])
+
+    assert (args.command, args.lineage_command) == ("lineage", "seed")

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from opendq.incidents.repository import IncidentRepository
 from opendq.quality.engine import evaluate_dataset
 from opendq.quality.registry import RULE_EVALUATORS
 
@@ -141,6 +142,7 @@ def test_quality_fail_is_persisted_without_failing_evaluation_run(repository) ->
     assert summary.status == "SUCCESS"
     assert summary.rules_failed >= 1
     assert any(result.status.value == "FAIL" for result in summary.results)
+    assert len(IncidentRepository(repository.connection).list_incidents(status="OPEN")) >= 1
 
 
 def test_rule_runtime_error_is_persisted_as_error(repository, monkeypatch) -> None:
@@ -159,3 +161,4 @@ def test_rule_runtime_error_is_persisted_as_error(repository, monkeypatch) -> No
     assert summary.status == "SUCCESS"
     assert summary.rules_errored == 1
     assert any(result.status.value == "ERROR" for result in summary.results)
+    assert len(IncidentRepository(repository.connection).list_incidents(status="OPEN")) == 1

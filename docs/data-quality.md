@@ -50,6 +50,8 @@ quality evaluation run RUNNING
 individual rule results persisted
         ↓
 quality evaluation run SUCCESS
+        ↓
+incident reconciliation from persisted results
 ```
 
 An ingestion run remains successful when a quality rule returns `FAIL`. A quality-engine runtime failure is recorded as a terminal evaluation `FAILED` run, while a per-rule exception is stored as an `ERROR` result when the evaluation can otherwise complete.
@@ -62,6 +64,15 @@ python -m opendq quality evaluate usgs
 python -m opendq quality evaluate all
 ```
 
-The web surface exposes `/api/quality`, `/api/quality/sources`, and `/quality`. These endpoints return persisted results only and never expose connection strings, raw SQL errors, or stack traces.
+The web surface exposes `/api/quality`, `/api/quality/sources`, `/quality`, `/api/incidents`, and `/api/lineage`. These endpoints return persisted results only and never expose connection strings, raw SQL errors, or stack traces.
 
-Drift detection, incidents, lineage, AI root-cause analysis, and streaming remain deferred.
+## Incident mapping
+
+Quality evidence is not itself an incident. After a completed evaluation, reconciliation applies this deterministic mapping:
+
+- `FAIL` opens or updates `DATA_QUALITY` for the dataset/rule using the configured rule severity.
+- `ERROR` opens or updates `EVALUATION_ERROR`; runtime evaluation failure is not treated as healthy data.
+- `PASS` resolves an active incident for the dataset/rule, including an acknowledged incident.
+- `WARN` and `SKIPPED` do not create incidents; `SKIPPED` also does not resolve an existing incident because it means not evaluated.
+
+The quality engine remains responsible for whether a rule passes. The incident engine is responsible only for the stateful operational interpretation and event history. AI root-cause analysis, drift detection, and streaming remain deferred.
