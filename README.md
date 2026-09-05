@@ -10,14 +10,14 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 
 **Phase 1.5:** Production ingestion foundation is frozen at `v0.1.0`. The Vercel/Neon deployment, scheduled ingestion, and idempotent persistence are verified.
 
-**Phase 2:** The deterministic Data Quality Engine is implemented on the `feat/data-quality-engine` branch and is being verified before production promotion.
+**Phase 2:** The deterministic Data Quality Engine is implemented and production-verified on `feat/data-quality-engine`.
 
 ### Hosted demo
 
 - Public URL: [opendq-observatory.vercel.app](https://opendq-observatory.vercel.app/)
 - The Vercel Hobby deployment is backed by a Vercel-managed Neon PostgreSQL Free resource and returns HTTP 200 from `/api/health` with a healthy database.
 - `/api/sources` reports both Open-Meteo and USGS Earthquakes as enabled with successful ingestion metadata.
-- The Phase 2 branch adds `/api/quality`, `/api/quality/sources`, and `/quality` for persisted rule results; production promotion follows local and CI verification.
+- `/api/quality`, `/api/quality/sources`, and `/quality` expose persisted production rule results; the current real datasets report quality scores of 100.0 with volume checks explicitly skipped until five baseline runs exist.
 - GitHub Actions has a production `DATABASE_URL` secret and a scheduled ingestion workflow; the verified workflow is idempotent and reports `NO_CHANGE` when no new logical records are available.
 - The deployed resource currently has Neon Auth provisioned by the marketplace integration, although this application does not use authentication. Disabling that extra service requires owner email verification in the provider UI and remains an explicit follow-up.
 - The Vercel project is not connected to GitHub automatic deployments; production deployment is currently owner-triggered.
