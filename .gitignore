@@ -15,9 +15,10 @@ htmlcov/
 .ruff_cache/
 __pycache__/
 *.py[cod]
+*.egg-info/
+*.tsbuildinfo
 pipeline/.venv/
 apps/web/node_modules/
 apps/web/.next/
 apps/web/out/
 *.log
-
