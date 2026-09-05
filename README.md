@@ -4,11 +4,18 @@ Open-source data reliability, drift detection, lineage, and AI-assisted incident
 
 OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engineering, Data Quality, Data Observability, Data Contracts, Lineage, and MLOps roles. It uses only public data and keeps the first release deterministic and free-tier aware.
 
-> Screenshot placeholder: add a hosted dashboard capture after an owner-authorized deployment exists.
+> Screenshot placeholder: add a hosted dashboard capture after the production database baseline is established.
 
 ## Project status
 
 **Phase 0–1:** Foundation and two public-data ingestion adapters are implemented in this repository. The web surface is intentionally a small system/source status page.
+
+### Hosted demo (limited)
+
+- Public URL: [opendq-observatory.vercel.app](https://opendq-observatory.vercel.app/)
+- The Next.js web surface is deployed and renders the honest degraded state.
+- Neon production storage, the GitHub Actions `DATABASE_URL` secret, and live scheduled ingestion are not configured in this environment. Until those owner-authenticated steps are completed, `/api/health` returns `503` with `database: unavailable` and `/api/sources` returns an unavailable empty state.
+- Local Docker PostgreSQL, migrations, live-source smoke evidence, and seeded records remain local-only verification.
 
 ### Implemented
 
