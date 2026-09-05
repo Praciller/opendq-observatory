@@ -155,7 +155,7 @@ class LineageRepository:
                 FROM lineage_edges e
                 JOIN lineage_nodes upstream ON upstream.id = e.upstream_node_id
                 JOIN lineage_nodes downstream ON downstream.id = e.downstream_node_id
-                WHERE e.upstream_node_id = ANY(%s) OR e.downstream_node_id = ANY(%s)
+                WHERE e.upstream_node_id = ANY(%s) AND e.downstream_node_id = ANY(%s)
                 ORDER BY e.id
                 """,
                 (node_ids, node_ids),

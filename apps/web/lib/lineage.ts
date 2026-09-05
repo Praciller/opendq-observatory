@@ -100,7 +100,7 @@ export async function getLineage(dataset: string): Promise<LineageResponse> {
        FROM lineage_edges e
        JOIN lineage_nodes upstream ON upstream.id = e.upstream_node_id
        JOIN lineage_nodes downstream ON downstream.id = e.downstream_node_id
-       WHERE e.upstream_node_id = ANY($1::bigint[]) OR e.downstream_node_id = ANY($1::bigint[])
+       WHERE e.upstream_node_id = ANY($1::bigint[]) AND e.downstream_node_id = ANY($1::bigint[])
        ORDER BY e.id`,
       [nodeIds],
     );
