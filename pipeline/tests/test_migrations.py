@@ -9,7 +9,7 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
 
     applied = apply_migrations(db_connection)
 
-    assert applied == ["001_initial.sql", "002_quality_engine.sql"]
+    assert applied == ["001_initial.sql", "002_quality_engine.sql", "003_incidents_lineage.sql"]
     with db_connection.cursor() as cursor:
         cursor.execute(
             """
@@ -20,7 +20,12 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
         assert [row[0] for row in cursor.fetchall()] == [
             "dataset_versions",
             "datasets",
+            "incident_events",
+            "incident_impacts",
+            "incidents",
             "ingestion_runs",
+            "lineage_edges",
+            "lineage_nodes",
             "quality_evaluation_runs",
             "quality_results",
             "quality_rules",
@@ -59,3 +64,19 @@ def test_quality_tables_have_dataset_and_run_indexes(repository) -> None:
     assert "quality_rules_dataset_id_idx" in indexes
     assert "quality_evaluation_runs_dataset_started_idx" in indexes
     assert "quality_results_run_id_idx" in indexes
+
+
+def test_incident_and_lineage_constraints_are_present(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            """
+            SELECT indexname FROM pg_indexes
+            WHERE tablename IN ('incidents', 'incident_impacts', 'lineage_edges')
+            ORDER BY indexname
+            """
+        )
+        indexes = {row[0] for row in cursor.fetchall()}
+
+    assert "incidents_active_dataset_rule_idx" in indexes
+    assert "incident_impacts_incident_node_idx" in indexes
+    assert "lineage_edges_unique_idx" in indexes

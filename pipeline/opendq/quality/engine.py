@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 from time import perf_counter
 from uuid import UUID
 
+from opendq.incidents.engine import reconcile_quality_evaluation
 from opendq.logging import log_event
 from opendq.quality.models import (
     QualityEvaluationSummary,
@@ -96,6 +97,7 @@ def evaluate_dataset(
             )
         summary = _summary(evaluation_run_id, dataset_id, dataset_slug, evaluated_at, results)
         repository.complete_quality_evaluation(evaluation_run_id, dataset_id, results, summary)
+        reconcile_quality_evaluation(repository.connection, evaluation_run_id)
         return summary
     except Exception:
         try:

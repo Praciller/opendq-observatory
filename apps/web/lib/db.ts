@@ -21,3 +21,10 @@ export async function query<T extends Record<string, unknown>>(
 ): Promise<T[]> {
   return getPool().unsafe<T[]>(text);
 }
+
+export async function queryValues<T extends Record<string, unknown>>(
+  text: string,
+  values: unknown[],
+): Promise<T[]> {
+  return getPool().unsafe<T[]>(text, values as never[]);
+}

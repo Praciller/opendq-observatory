@@ -12,8 +12,12 @@ import httpx
 import psycopg
 
 from opendq.config import Settings
+from opendq.incidents.repository import IncidentRepository
 from opendq.ingestion.results import IngestionResult
 from opendq.ingestion.runner import run_all, run_source
+from opendq.lineage.repository import LineageRepository
+from opendq.lineage.seed import seed_lineage
+from opendq.lineage.traversal import downstream_blast_radius
 from opendq.logging import configure_logging
 from opendq.quality.engine import evaluate_dataset
 from opendq.sources.open_meteo import OpenMeteoAdapter
@@ -36,6 +40,23 @@ def build_parser() -> argparse.ArgumentParser:
     quality_commands = quality.add_subparsers(dest="quality_command", required=True)
     evaluate = quality_commands.add_parser("evaluate", help="evaluate one or all datasets")
     evaluate.add_argument("dataset", choices=("open-meteo", "usgs", "all"))
+    incident = commands.add_parser("incident", help="inspect and acknowledge incidents")
+    incident_commands = incident.add_subparsers(dest="incident_command", required=True)
+    incident_list = incident_commands.add_parser("list", help="list incidents")
+    incident_list.add_argument("--status", choices=("open", "acknowledged", "resolved"))
+    incident_list.add_argument("--dataset")
+    incident_list.add_argument("--severity", choices=("info", "warning", "high", "critical"))
+    incident_show = incident_commands.add_parser("show", help="show one incident")
+    incident_show.add_argument("incident_id")
+    incident_ack = incident_commands.add_parser("acknowledge", help="acknowledge one incident")
+    incident_ack.add_argument("incident_id")
+    lineage = commands.add_parser("lineage", help="inspect deterministic lineage")
+    lineage_commands = lineage.add_subparsers(dest="lineage_command", required=True)
+    lineage_show = lineage_commands.add_parser("show", help="show dataset lineage")
+    lineage_show.add_argument("dataset")
+    lineage_impact = lineage_commands.add_parser("impact", help="show downstream blast radius")
+    lineage_impact.add_argument("dataset")
+    lineage_commands.add_parser("seed", help="seed implemented lineage idempotently")
     return parser
 
 
@@ -81,6 +102,60 @@ def _quality(settings: Settings, dataset: str) -> int:
     return 0
 
 
+def _incident(settings: Settings, command: str, args: argparse.Namespace) -> int:
+    with psycopg.connect(settings.database_url) as connection:
+        repository = IncidentRepository(connection)
+        if command == "list":
+            payload = {
+                "incidents": repository.list_incidents(
+                    status=args.status,
+                    dataset=args.dataset,
+                    severity=args.severity,
+                )
+            }
+        elif command == "show":
+            payload = repository.get_incident(args.incident_id)
+        else:
+            payload = repository.acknowledge(args.incident_id)
+    print(json.dumps(payload, sort_keys=True, default=str))
+    return 0
+
+
+def _dataset_slug(value: str) -> str:
+    return {
+        "open-meteo": "hourly-weather",
+        "usgs": "earthquake-events",
+        "usgs-earthquakes": "earthquake-events",
+    }.get(value, value)
+
+
+def _lineage(settings: Settings, command: str, dataset: str) -> int:
+    with psycopg.connect(settings.database_url) as connection:
+        if command == "seed":
+            print(json.dumps(seed_lineage(connection), sort_keys=True))
+            return 0
+        dataset_slug = _dataset_slug(dataset)
+        repository = LineageRepository(connection)
+        if command == "impact":
+            payload = {
+                "dataset": dataset_slug,
+                "impact": downstream_blast_radius(repository, f"dataset:{dataset_slug}"),
+            }
+        else:
+            dataset_id = repository.dataset_id_for_slug(dataset_slug)
+            source_key = (
+                "source:usgs" if dataset_slug == "earthquake-events" else "source:open-meteo"
+            )
+            nodes = repository.nodes_for_dataset(dataset_id, source_key=source_key)
+            payload = {
+                "dataset": dataset_slug,
+                "nodes": nodes,
+                "edges": repository.edges_for_nodes([int(node["id"]) for node in nodes]),
+            }
+    print(json.dumps(payload, sort_keys=True, default=str))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -93,6 +168,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.command == "quality":
             return _quality(settings, args.dataset)
+        if args.command == "incident":
+            return _incident(settings, args.incident_command, args)
+        if args.command == "lineage":
+            return _lineage(settings, args.lineage_command, getattr(args, "dataset", ""))
         return asyncio.run(_ingest(settings, args.source))
     except (ValueError, psycopg.Error) as exc:
         print(

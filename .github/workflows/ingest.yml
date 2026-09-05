@@ -35,6 +35,9 @@ jobs:
       - name: Apply migrations
         working-directory: pipeline
         run: uv run python -m opendq migrate
-      - name: Ingest sources and evaluate quality
+      - name: Seed production lineage
+        working-directory: pipeline
+        run: uv run python -m opendq lineage seed
+      - name: Ingest sources, evaluate quality, and reconcile incidents
         working-directory: pipeline
         run: uv run python -m opendq ingest all

@@ -10,7 +10,9 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 
 **Phase 1.5:** Production ingestion foundation is frozen at `v0.1.0`. The Vercel/Neon deployment, scheduled ingestion, and idempotent persistence are verified.
 
-**Phase 2:** The deterministic Data Quality Engine is implemented and production-verified on `feat/data-quality-engine`.
+**Phase 2:** The deterministic Data Quality Engine is frozen at `v0.2.0`.
+
+**Phase 3:** Deterministic incident detection, lineage, and blast-radius evidence are implemented on `main`.
 
 ### Hosted demo
 
@@ -18,6 +20,7 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 - The Vercel Hobby deployment is backed by a Vercel-managed Neon PostgreSQL Free resource and returns HTTP 200 from `/api/health` with a healthy database.
 - `/api/sources` reports both Open-Meteo and USGS Earthquakes as enabled with successful ingestion metadata.
 - `/api/quality`, `/api/quality/sources`, and `/quality` expose persisted production rule results; the current real datasets report quality scores of 100.0 with volume checks explicitly skipped until five baseline runs exist.
+- `/api/incidents`, `/api/lineage`, `/incidents`, and `/lineage` expose read-only incident lifecycle and lineage evidence from Neon.
 - GitHub Actions has a production `DATABASE_URL` secret and a scheduled ingestion workflow; the verified workflow is idempotent and reports `NO_CHANGE` when no new logical records are available.
 - The deployed resource currently has Neon Auth provisioned by the marketplace integration, although this application does not use authentication. Disabling that extra service requires owner email verification in the provider UI and remains an explicit follow-up.
 - The Vercel project is not connected to GitHub automatic deployments; production deployment is currently owner-triggered.
@@ -30,12 +33,14 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 - USGS GeoJSON earthquake feed ingestion.
 - PostgreSQL migrations, ingestion-run lifecycle, provenance-bearing observations, and database-enforced idempotency.
 - Deterministic quality rules for freshness, completeness, uniqueness, validity/range, timestamp continuity, and volume baselines, with persisted explainable results and transparent scores.
-- Next.js App Router status page with database-aware `/api/health` and `/api/sources` endpoints.
+- Deterministic incident lifecycle with database-enforced active deduplication, event history, automatic recovery, and trusted CLI acknowledgement.
+- Idempotent provider-neutral lineage seed, bounded downstream traversal, and incident blast-radius snapshots.
+- Next.js App Router status, quality, incident, and lineage pages with database-aware APIs.
 - Next.js quality API/detail page, Docker Compose PostgreSQL, deterministic tests, GitHub Actions CI, and six-hour ingestion-plus-quality workflow.
 
 ### Planned
 
-Drift detection, incident lifecycle, lineage/blast-radius views, deterministic root-cause evidence, optional AI explanations, and streaming remain later-phase work. Kafka/Redpanda, authentication, notifications, billing, and multi-tenancy are also deferred.
+Drift detection, deterministic root-cause evidence, optional AI explanations, and streaming remain later-phase work. Kafka/Redpanda, authentication, notifications, billing, and multi-tenancy are also deferred.
 
 ## Architecture
 
@@ -44,7 +49,9 @@ Open-Meteo / USGS → fetch → parse → normalize → Pydantic contract
                                       ↓
                               PostgreSQL + run record
                                       ↓
-                              Next.js status/API
+                         quality evaluation + incidents
+                                      ↓
+                         lineage-aware read-only APIs/UI
 ```
 
 Production uses Vercel Hobby for the web app, a Vercel-managed Neon PostgreSQL Free resource for storage, and GitHub Actions for scheduled micro-batches. Local development uses Docker Compose PostgreSQL. Cloudflare is not part of this project.
@@ -69,9 +76,23 @@ The `.env` file is local-only and ignored by Git. The Compose credentials are de
 pipeline/.venv/Scripts/python.exe -m opendq ingest open-meteo
 pipeline/.venv/Scripts/python.exe -m opendq ingest usgs
 pipeline/.venv/Scripts/python.exe -m opendq ingest all
+pipeline/.venv/Scripts/python.exe -m opendq lineage seed
 ```
 
 Repeated ingestion is safe: weather uses dataset/location/timestamp uniqueness and USGS uses the canonical event ID. A repeat with no new logical records is reported as `NO_CHANGE` and exits successfully.
+
+## Incidents and lineage
+
+```powershell
+pipeline/.venv/Scripts/python.exe -m opendq incident list
+pipeline/.venv/Scripts/python.exe -m opendq incident list --status open
+pipeline/.venv/Scripts/python.exe -m opendq incident show <incident-id>
+pipeline/.venv/Scripts/python.exe -m opendq incident acknowledge <incident-id>
+pipeline/.venv/Scripts/python.exe -m opendq lineage show open-meteo
+pipeline/.venv/Scripts/python.exe -m opendq lineage impact open-meteo
+```
+
+The public app is read-only for incident state. A trusted operator CLI may acknowledge an OPEN incident; quality PASS results resolve OPEN or ACKNOWLEDGED incidents automatically. See [incident semantics](docs/incidents.md) and [lineage](docs/lineage.md).
 
 ## Web app
 
