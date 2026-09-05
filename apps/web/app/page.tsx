@@ -1,3 +1,6 @@
+import Link from "next/link";
+
+import { getQualitySummaries, type QualityStatus } from "../lib/quality";
 import { buildHealthResponse, getSourceStatuses, type HealthResponse } from "../lib/status";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +35,14 @@ function HealthSummary({ health }: { health: HealthResponse }) {
   );
 }
 
+function QualityPill({ status }: { status: QualityStatus }) {
+  return <span className={`status-pill quality-pill quality-${status.toLowerCase()}`}>{status}</span>;
+}
+
 export default async function Home() {
   const health = await buildHealthResponse();
   const sources = await getSourceStatuses();
+  const quality = await getQualitySummaries();
 
   return (
     <main className="shell">
@@ -82,7 +90,39 @@ export default async function Home() {
         )}
       </section>
 
-      <footer>Phase 0–1 · Public data only · No fabricated operational metrics</footer>
+      <section className="panel" aria-labelledby="quality-heading">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">Deterministic checks</p>
+            <h2 id="quality-heading">Data Quality</h2>
+          </div>
+          <Link className="text-link" href="/quality">View details</Link>
+        </div>
+        {quality.datasets.length === 0 ? (
+          <div className="empty-state">
+            <strong>{quality.message ?? "No quality evaluation has been recorded yet."}</strong>
+            <span>Run a quality evaluation after migration and ingestion to record the first result.</span>
+          </div>
+        ) : (
+          <div className="quality-summary-list">
+            {quality.datasets.map((dataset) => (
+              <article className="quality-summary-row" key={dataset.datasetSlug}>
+                <div>
+                  <h3>{dataset.datasetName}</h3>
+                  <p className="muted">{dataset.datasetSlug}</p>
+                </div>
+                <div className="quality-summary-meta">
+                  <QualityPill status={dataset.status} />
+                  <strong>{dataset.score === null ? "—" : `${dataset.score.toFixed(1)} / 100`}</strong>
+                  <span className="muted">{dataset.ruleCounts.evaluated} rules evaluated</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <footer>Phase 2 · Deterministic quality checks · No fabricated operational metrics</footer>
     </main>
   );
 }

@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Sequence
+from dataclasses import replace
 from time import perf_counter
 
 from opendq.errors import ErrorCode, IngestionError
 from opendq.ingestion.results import IngestionResult
 from opendq.logging import log_event
+from opendq.quality.engine import evaluate_dataset
 from opendq.sources.base import SourceAdapter
 from opendq.storage.repository import Repository
 
@@ -94,6 +96,25 @@ async def run_source(repository: Repository, adapter: SourceAdapter) -> Ingestio
             error_code=ErrorCode.DATABASE_ERROR.value,
             error_message=message,
         )
+    if result.status in {"SUCCESS", "NO_CHANGE"}:
+        try:
+            quality = evaluate_dataset(
+                repository,
+                adapter.dataset_slug,
+                triggered_by=f"ingestion:{result.run_id}",
+            )
+            result = replace(
+                result,
+                quality_evaluation_run_id=quality.evaluation_run_id,
+                quality_status=quality.status,
+                quality_score=quality.score,
+            )
+        except Exception:
+            LOGGER.exception(
+                "quality evaluation failed after ingestion",
+                extra={"dataset": adapter.dataset_slug, "ingestion_run_id": str(result.run_id)},
+            )
+            result = replace(result, quality_error="QUALITY_EVALUATION_ERROR")
     log_event(
         LOGGER,
         run_id=str(result.run_id) if result.run_id else None,

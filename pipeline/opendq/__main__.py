@@ -15,6 +15,7 @@ from opendq.config import Settings
 from opendq.ingestion.results import IngestionResult
 from opendq.ingestion.runner import run_all, run_source
 from opendq.logging import configure_logging
+from opendq.quality.engine import evaluate_dataset
 from opendq.sources.open_meteo import OpenMeteoAdapter
 from opendq.sources.usgs import USGSAdapter
 from opendq.storage.migrations import apply_migrations
@@ -31,6 +32,10 @@ def build_parser() -> argparse.ArgumentParser:
     commands.add_parser("migrate", help="apply pending SQL migrations")
     ingest = commands.add_parser("ingest", help="ingest one or all public sources")
     ingest.add_argument("source", choices=("open-meteo", "usgs", "all"))
+    quality = commands.add_parser("quality", help="evaluate deterministic data quality")
+    quality_commands = quality.add_subparsers(dest="quality_command", required=True)
+    evaluate = quality_commands.add_parser("evaluate", help="evaluate one or all datasets")
+    evaluate.add_argument("dataset", choices=("open-meteo", "usgs", "all"))
     return parser
 
 
@@ -62,6 +67,20 @@ async def _ingest(settings: Settings, source: str) -> int:
     return exit_code_for_results(results)
 
 
+def _quality(settings: Settings, dataset: str) -> int:
+    dataset_slugs = {
+        "open-meteo": "hourly-weather",
+        "usgs": "earthquake-events",
+    }
+    selected = tuple(dataset_slugs.values()) if dataset == "all" else (dataset_slugs[dataset],)
+    with psycopg.connect(settings.database_url) as connection:
+        repository = Repository(connection)
+        summaries = [evaluate_dataset(repository, slug, triggered_by="cli") for slug in selected]
+    for summary in summaries:
+        print(json.dumps(summary.as_dict(), sort_keys=True, default=str))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -72,6 +91,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 applied = apply_migrations(connection)
             print(json.dumps({"applied": applied}))
             return 0
+        if args.command == "quality":
+            return _quality(settings, args.dataset)
         return asyncio.run(_ingest(settings, args.source))
     except (ValueError, psycopg.Error) as exc:
         print(

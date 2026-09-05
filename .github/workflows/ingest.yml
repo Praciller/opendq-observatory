@@ -35,6 +35,6 @@ jobs:
       - name: Apply migrations
         working-directory: pipeline
         run: uv run python -m opendq migrate
-      - name: Ingest all public sources
+      - name: Ingest sources and evaluate quality
         working-directory: pipeline
         run: uv run python -m opendq ingest all

@@ -42,8 +42,12 @@ async def test_identical_weather_ingestion_becomes_no_change(repository) -> None
 
     assert first.status == "SUCCESS"
     assert first.records_written == 2
+    assert first.quality_status == "SUCCESS"
+    assert first.quality_evaluation_run_id is not None
     assert second.status == "NO_CHANGE"
     assert second.records_written == 0
+    assert second.quality_status == "SUCCESS"
+    assert second.quality_evaluation_run_id is not None
 
 
 @pytest.mark.asyncio
@@ -89,6 +93,23 @@ async def test_database_write_failure_is_recorded_as_failed(repository, monkeypa
 
     assert result.status == "FAILED"
     assert result.error_code == ErrorCode.DATABASE_ERROR
+
+
+@pytest.mark.asyncio
+async def test_quality_engine_error_does_not_rewrite_ingestion_but_fails_process(
+    repository, monkeypatch
+) -> None:
+    adapter = FixtureAdapter(json.loads((FIXTURES / "open_meteo.json").read_text()))
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("quality engine unavailable")
+
+    monkeypatch.setattr("opendq.ingestion.runner.evaluate_dataset", fail)
+    result = await run_source(repository, adapter)
+
+    assert result.status == "SUCCESS"
+    assert result.quality_error == "QUALITY_EVALUATION_ERROR"
+    assert result.exit_code == 1
 
 
 @pytest.mark.asyncio

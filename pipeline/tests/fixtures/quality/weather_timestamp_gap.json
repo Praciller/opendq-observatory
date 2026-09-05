@@ -1,0 +1,5 @@
+[
+  {"observed_at": "2026-09-06T08:00:00Z", "fields": {"latitude": 13.7563, "longitude": 100.5018, "temperature_c": 29.0}},
+  {"observed_at": "2026-09-06T09:00:00Z", "fields": {"latitude": 13.7563, "longitude": 100.5018, "temperature_c": 29.5}},
+  {"observed_at": "2026-09-06T12:00:00Z", "fields": {"latitude": 13.7563, "longitude": 100.5018, "temperature_c": 30.0}}
+]
