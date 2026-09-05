@@ -4,6 +4,8 @@ Open-source data reliability, drift detection, lineage, and AI-assisted incident
 
 OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engineering, Data Quality, Data Observability, Data Contracts, Lineage, and MLOps roles. It uses only public data and keeps the first release deterministic and free-tier aware.
 
+> Screenshot placeholder: add a hosted dashboard capture after an owner-authorized deployment exists.
+
 ## Project status
 
 **Phase 0–1:** Foundation and two public-data ingestion adapters are implemented in this repository. The web surface is intentionally a small system/source status page.
@@ -96,4 +98,3 @@ CI uses disposable PostgreSQL and deterministic fixtures. It does not call publi
 ## Free-tier philosophy
 
 The project favors scheduled micro-batches, public endpoints without credentials, one small PostgreSQL service, bounded raw provenance, and portable business logic. Neon/Vercel deployment remains owner-authenticated work and is reported separately from local verification.
-
