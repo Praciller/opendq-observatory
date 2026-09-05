@@ -4,17 +4,20 @@ Open-source data reliability, drift detection, lineage, and AI-assisted incident
 
 OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engineering, Data Quality, Data Observability, Data Contracts, Lineage, and MLOps roles. It uses only public data and keeps the first release deterministic and free-tier aware.
 
-> Screenshot placeholder: add a hosted dashboard capture after the production database baseline is established.
+> Screenshot placeholder: add a hosted dashboard capture after owner review.
 
 ## Project status
 
 **Phase 0–1:** Foundation and two public-data ingestion adapters are implemented in this repository. The web surface is intentionally a small system/source status page.
 
-### Hosted demo (limited)
+### Hosted demo
 
 - Public URL: [opendq-observatory.vercel.app](https://opendq-observatory.vercel.app/)
-- The Next.js web surface is deployed and renders the honest degraded state.
-- Neon production storage, the GitHub Actions `DATABASE_URL` secret, and live scheduled ingestion are not configured in this environment. Until those owner-authenticated steps are completed, `/api/health` returns `503` with `database: unavailable` and `/api/sources` returns an unavailable empty state.
+- The Vercel Hobby deployment is backed by a Vercel-managed Neon PostgreSQL Free resource and returns HTTP 200 from `/api/health` with a healthy database.
+- `/api/sources` reports both Open-Meteo and USGS Earthquakes as enabled with successful ingestion metadata.
+- GitHub Actions has a production `DATABASE_URL` secret and a scheduled ingestion workflow; the verified workflow is idempotent and reports `NO_CHANGE` when no new logical records are available.
+- The deployed resource currently has Neon Auth provisioned by the marketplace integration, although this application does not use authentication. Disabling that extra service requires owner email verification in the provider UI and remains an explicit follow-up.
+- The Vercel project is not connected to GitHub automatic deployments; production deployment is currently owner-triggered.
 - Local Docker PostgreSQL, migrations, live-source smoke evidence, and seeded records remain local-only verification.
 
 ### Implemented
@@ -40,7 +43,7 @@ Open-Meteo / USGS → fetch → parse → normalize → Pydantic contract
                               Next.js status/API
 ```
 
-Production targets are Vercel Hobby for the web app, Neon PostgreSQL Free for storage, and GitHub Actions for scheduled micro-batches. Local development uses Docker Compose PostgreSQL. Cloudflare is not part of this project.
+Production uses Vercel Hobby for the web app, a Vercel-managed Neon PostgreSQL Free resource for storage, and GitHub Actions for scheduled micro-batches. Local development uses Docker Compose PostgreSQL. Cloudflare is not part of this project.
 
 ## Local setup
 
@@ -104,4 +107,4 @@ CI uses disposable PostgreSQL and deterministic fixtures. It does not call publi
 
 ## Free-tier philosophy
 
-The project favors scheduled micro-batches, public endpoints without credentials, one small PostgreSQL service, bounded raw provenance, and portable business logic. Neon/Vercel deployment remains owner-authenticated work and is reported separately from local verification.
+The project favors scheduled micro-batches, public endpoints without credentials, one small PostgreSQL service, bounded raw provenance, and portable business logic. Provider settings that require owner verification, including disabling the unintended Neon Auth add-on and enabling GitHub automatic deployments, are reported separately from the verified production path.
