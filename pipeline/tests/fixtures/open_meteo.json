@@ -1,0 +1,12 @@
+{
+  "latitude": 13.7563,
+  "longitude": 100.5018,
+  "timezone": "UTC",
+  "hourly": {
+    "time": ["2026-09-06T00:00", "2026-09-06T01:00"],
+    "temperature_2m": [28.1, 28.3],
+    "relative_humidity_2m": [82, 81],
+    "precipitation": [0.0, 0.2],
+    "wind_speed_10m": [8.4, 9.1]
+  }
+}

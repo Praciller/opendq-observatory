@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {"generated": 1788652800000, "title": "M 2.5+ Earthquakes"},
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "mag": 4.2,
+        "place": "12 km N of Example, Alaska",
+        "time": 1788651000000,
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/fixture-1"
+      },
+      "geometry": {"type": "Point", "coordinates": [-150.0, 61.0, 12.3]},
+      "id": "fixture-usgs-1"
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "mag": 3.1,
+        "place": "8 km W of Example, California",
+        "time": 1788647400000,
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/fixture-2"
+      },
+      "geometry": {"type": "Point", "coordinates": [-118.4, 34.1, 8.0]},
+      "id": "fixture-usgs-2"
+    }
+  ]
+}

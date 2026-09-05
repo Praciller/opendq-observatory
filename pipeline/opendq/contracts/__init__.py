@@ -1,0 +1,1 @@
+"""Canonical normalized data contracts."""

@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: opendq
+      POSTGRES_USER: opendq
+      POSTGRES_PASSWORD: opendq
+    ports:
+      - "5432:5432"
+    volumes:
+      - opendq-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendq -d opendq"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  opendq-postgres:
+

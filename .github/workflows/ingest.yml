@@ -1,0 +1,40 @@
+name: Scheduled public ingestion
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: opendq-production-ingestion
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Require production database secret
+        shell: bash
+        run: |
+          if [ -z "${DATABASE_URL}" ]; then
+            echo "DATABASE_URL GitHub Actions secret is required for scheduled ingestion."
+            exit 1
+          fi
+      - name: Install pipeline
+        working-directory: pipeline
+        run: python -m pip install "uv==0.12.7" && uv sync --locked
+      - name: Apply migrations
+        working-directory: pipeline
+        run: uv run python -m opendq migrate
+      - name: Ingest all public sources
+        working-directory: pipeline
+        run: uv run python -m opendq ingest all
