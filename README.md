@@ -8,6 +8,20 @@ Deterministic data reliability and observability for public-data pipelines—wit
 
 The live dashboard is read-only and backed by persisted Vercel/Neon production evidence. Start with the system health panel, then follow the reviewer path below.
 
+## Production console
+
+These screenshots show real read-only production state captured for the v1.0.1 UI hardening release; live values continue to evolve with scheduled runs.
+
+![OpenDQ operational overview](docs/screenshots/v1.0.1/overview-desktop.png)
+
+| Drift evidence | Lineage and downstream impact |
+| --- | --- |
+| ![OpenDQ drift view](docs/screenshots/v1.0.1/drift-desktop.png) | ![OpenDQ lineage view](docs/screenshots/v1.0.1/lineage-desktop.png) |
+
+![OpenDQ incident detail with deterministic RCA](docs/screenshots/v1.0.1/incident-detail-desktop.png)
+
+Mobile layout is verified at 390px with no page-level horizontal overflow.
+
 ## What it solves
 
 Public data pipelines can return HTTP 200 while quietly changing shape, freshness, validity, or distribution. OpenDQ turns those observations into explicit, queryable evidence instead of a single opaque health score.
@@ -127,6 +141,15 @@ npm run lint
 npm run typecheck
 npm run build
 ```
+
+
+Post-deploy UI contract:
+
+```powershell
+npm run verify:production-ui -- https://opendq-observatory.vercel.app
+```
+
+This verifies that production HTML references stylesheets containing the OpenDQ shell selectors, catching deployment artifact/cache regressions that an HTTP 200 alone cannot detect.
 
 CI uses disposable PostgreSQL and deterministic fixtures. It does not call public APIs or external AI providers. Release evidence, security checks, browser QA, screenshots, and known limitations live in [docs/releases/v1.0.0-evidence.md](docs/releases/v1.0.0-evidence.md).
 

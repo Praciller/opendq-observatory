@@ -1,0 +1,30 @@
+name: Verify production UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Production deployment URL to verify
+        required: false
+        default: https://opendq-observatory.vercel.app
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production-ui:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install web dependencies
+        run: npm ci
+      - name: Verify deployed UI contract
+        run: npm run verify:production-ui -- "${{ inputs.base_url }}"
