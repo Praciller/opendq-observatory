@@ -1,12 +1,13 @@
 import Link from "next/link";
 
-import { getQualitySummaries, type QualityStatus } from "../../lib/quality";
+import { EvidenceRow } from "../../components/evidence-row";
+import { Metric } from "../../components/metric";
+import { PageHeader } from "../../components/page-header";
+import { Section } from "../../components/section";
+import { StatusBadge } from "../../components/status-badge";
+import { getQualitySummaries, type QualityResult } from "../../lib/quality";
 
 export const dynamic = "force-dynamic";
-
-function QualityPill({ status }: { status: QualityStatus }) {
-  return <span className={`status-pill quality-pill quality-${status.toLowerCase()}`}>{status}</span>;
-}
 
 function valueText(value: Record<string, unknown>): string {
   return Object.entries(value)
@@ -14,67 +15,68 @@ function valueText(value: Record<string, unknown>): string {
     .join(" · ");
 }
 
+function resultPriority(result: QualityResult): number {
+  return { FAIL: 0, ERROR: 0, WARN: 1, PASS: 2, SKIPPED: 3 }[result.status] ?? 4;
+}
+
+function orderResults(results: QualityResult[]): QualityResult[] {
+  return [...results].sort((left, right) => resultPriority(left) - resultPriority(right));
+}
+
 export default async function QualityPage() {
   const quality = await getQualitySummaries();
 
   return (
-    <main className="shell">
-      <header className="hero quality-hero">
-        <p className="eyebrow">Phase 2 · Data Quality Engine</p>
-        <h1>Quality evidence</h1>
-        <p className="intro">Deterministic checks over the persisted Open-Meteo and USGS observations. Scores summarize the rules; individual results remain the source of truth.</p>
-        <Link className="text-link" href="/">← Back to system status</Link>
-      </header>
+    <main className="shell" id="main-content">
+      <PageHeader
+        title="Quality evidence"
+        description="Review dataset health first, then open individual deterministic rules to inspect observed and expected values."
+        actions={<Link className="secondary-link" href="/">Overview</Link>}
+        meta={<span className="page-meta">Latest persisted evaluation per dataset</span>}
+      />
 
       {quality.datasets.length === 0 ? (
-        <section className="panel empty-state">
-          <strong>{quality.message ?? "No quality evaluation has been recorded yet."}</strong>
-          <span>Apply the quality migration and run <code>python -m opendq quality evaluate all</code>.</span>
-        </section>
+        <Section title="No quality evaluation yet" description="The dashboard does not infer a score when persisted rule results are missing.">
+          <div className="empty-state"><strong>{quality.message ?? "No quality evaluation has been recorded yet."}</strong><span>Individual rule results will appear when evaluation evidence is available.</span></div>
+        </Section>
       ) : (
-        <div className="quality-detail-list">
+        <div className="section-stack">
           {quality.datasets.map((dataset) => (
-            <section className="panel" key={dataset.datasetSlug} aria-labelledby={`${dataset.datasetSlug}-heading`}>
-              <div className="quality-detail-heading">
-                <div>
-                  <p className="eyebrow">Dataset</p>
-                  <h2 id={`${dataset.datasetSlug}-heading`}>{dataset.datasetName}</h2>
-                  <p className="muted">{dataset.datasetSlug}</p>
-                </div>
-                <div className="quality-score-block">
-                  <QualityPill status={dataset.status} />
-                  <strong>{dataset.score === null ? "No score" : `${dataset.score.toFixed(1)} / 100`}</strong>
-                  <span className="muted">{dataset.evaluatedAt ? `Evaluated ${new Date(dataset.evaluatedAt).toLocaleString()}` : "Not evaluated"}</span>
-                </div>
+            <Section
+              key={dataset.datasetSlug}
+              id={dataset.datasetSlug}
+              title={dataset.datasetName}
+              description={`${dataset.datasetSlug} · ${dataset.evaluationRunId ? "Latest evaluation recorded" : "No evaluation run recorded"}`}
+              action={<StatusBadge status={dataset.status} />}
+            >
+              <div className="dataset-summary">
+                <Metric label="Latest score" value={dataset.score === null ? "No score" : `${dataset.score.toFixed(1)} / 100`} detail={dataset.evaluatedAt ? `Evaluated ${new Date(dataset.evaluatedAt).toLocaleString()}` : "Not evaluated"} tone={dataset.status === "PASS" ? "success" : dataset.status === "UNKNOWN" ? "neutral" : "warning"} />
+                <Metric label="Rules evaluated" value={dataset.ruleCounts.evaluated} detail={`${dataset.ruleCounts.passed} passed · ${dataset.ruleCounts.failed + dataset.ruleCounts.errored} failed or errored`} />
+                <Metric label="Attention" value={dataset.ruleCounts.failed + dataset.ruleCounts.errored + dataset.ruleCounts.warned} detail={`${dataset.ruleCounts.warned} warned · ${dataset.ruleCounts.skipped} skipped`} tone={dataset.ruleCounts.failed + dataset.ruleCounts.errored > 0 ? "danger" : dataset.ruleCounts.warned > 0 ? "warning" : "success"} />
               </div>
-              <div className="quality-counts" aria-label="Quality result counts">
-                <span>Pass {dataset.ruleCounts.passed}</span>
-                <span>Warn {dataset.ruleCounts.warned}</span>
-                <span>Fail {dataset.ruleCounts.failed}</span>
-                <span>Error {dataset.ruleCounts.errored}</span>
-                <span>Skipped {dataset.ruleCounts.skipped}</span>
-              </div>
+
               {dataset.results.length === 0 ? (
-                <div className="empty-state"><span>No individual rule results are available.</span></div>
+                <div className="empty-state"><strong>No individual rule results are available.</strong><span>The dataset summary has no persisted rule-level evidence to inspect.</span></div>
               ) : (
-                <div className="quality-rules">
-                  {dataset.results.map((result) => (
+                <div className="quality-rules" aria-label={`${dataset.datasetName} quality rules`}>
+                  {orderResults(dataset.results).map((result) => (
                     <details className="quality-rule" key={result.ruleSlug}>
                       <summary>
-                        <span><strong>{result.ruleName}</strong><small>{result.dimension} · {result.severity}</small></span>
-                        <QualityPill status={result.status === "SKIPPED" ? "UNKNOWN" : result.status} />
+                        <span className="rule-title"><strong>{result.ruleName}</strong><small>{result.dimension} · {result.severity}</small></span>
+                        <StatusBadge status={result.status} />
                       </summary>
-                      <div className="quality-rule-body">
-                        <p><strong>Observed:</strong> {valueText(result.observedValue) || "—"}</p>
-                        <p><strong>Expected:</strong> {valueText(result.expectedValue) || "—"}</p>
-                        <p><strong>Affected records:</strong> {result.affectedRecords} · <strong>Evaluated:</strong> {result.evaluatedRecords}</p>
-                        {Object.keys(result.details).length > 0 && <p><strong>Details:</strong> {valueText(result.details)}</p>}
-                      </div>
+                      <dl className="rule-evidence">
+                        <EvidenceRow label="Observed" value={valueText(result.observedValue) || "Not available"} />
+                        <EvidenceRow label="Expected" value={valueText(result.expectedValue) || "Not available"} />
+                        <EvidenceRow label="Affected records" value={result.affectedRecords.toLocaleString()} />
+                        <EvidenceRow label="Evaluated records" value={result.evaluatedRecords.toLocaleString()} />
+                        {Object.keys(result.details).length > 0 && <EvidenceRow label="Details" value={valueText(result.details)} />}
+                      </dl>
                     </details>
                   ))}
                 </div>
               )}
-            </section>
+            </Section>
           ))}
         </div>
       )}
