@@ -230,7 +230,9 @@ class Repository:
     def quality_rules(
         self, dataset_id: int, *, enabled_only: bool = True
     ) -> list[QualityRuleDefinition]:
-        predicate = "AND enabled" if enabled_only else ""
+        predicate = "AND dimension <> 'drift'"
+        if enabled_only:
+            predicate += " AND enabled"
         with self.connection.cursor() as cursor:
             cursor.execute(
                 f"""
