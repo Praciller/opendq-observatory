@@ -31,3 +31,9 @@ python -m opendq rca list
 ```
 
 The read-only API is `/api/incidents/<id>/rca`; incident detail renders probable cause, confidence, ranked candidates, supporting evidence, algorithm version, and affected assets. A healthy production deployment with zero incidents correctly has zero RCA executions.
+
+The optional AI Incident Copilot consumes this persisted RCA and bounded
+quality/drift/lineage/timeline evidence. It is not part of deterministic
+ranking and cannot overwrite it. The AI explanation route is
+`GET /api/incidents/<id>/ai`; inference is only run by the trusted CLI/workflow
+and the deterministic fallback is persisted when providers are unavailable.

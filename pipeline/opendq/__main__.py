@@ -12,6 +12,8 @@ from typing import Any
 import httpx
 import psycopg
 
+from opendq.ai.repository import AIIncidentRepository
+from opendq.ai.service import analyze_incident as analyze_ai_incident
 from opendq.config import Settings
 from opendq.drift.repository import DriftRepository
 from opendq.drift.service import create_baselines
@@ -82,6 +84,19 @@ def build_parser() -> argparse.ArgumentParser:
     rca_show = rca_commands.add_parser("show", help="show the latest analysis")
     rca_show.add_argument("incident_id")
     rca_commands.add_parser("list", help="list incidents with RCA")
+    ai = commands.add_parser("ai", help="inspect persisted incident explanations")
+    ai_commands = ai.add_subparsers(dest="ai_command", required=True)
+    ai_analyze = ai_commands.add_parser("analyze", help="analyze one incident")
+    ai_analyze.add_argument("incident_id")
+    ai_analyze.add_argument("--force", action="store_true")
+    ai_show = ai_commands.add_parser("show", help="show the latest explanation")
+    ai_show.add_argument("incident_id")
+    ai_pending = ai_commands.add_parser("pending", help="list incidents awaiting explanation")
+    ai_pending.add_argument("--limit", type=int, default=10)
+    ai_batch = ai_commands.add_parser(
+        "analyze-open", help="analyze a bounded batch of open incidents"
+    )
+    ai_batch.add_argument("--limit", type=int, default=None)
     return parser
 
 
@@ -230,6 +245,51 @@ def _rca(settings: Settings, command: str, incident_id: str | None) -> int:
     return 0
 
 
+def _ai(settings: Settings, command: str, args: argparse.Namespace) -> int:
+    with psycopg.connect(settings.database_url) as connection:
+        repository = AIIncidentRepository(connection)
+        if command == "show":
+            analysis = repository.latest(args.incident_id)
+            payload = analysis.to_dict() if analysis else {"analysis": None}
+        elif command == "pending":
+            payload = {"incidentIds": repository.pending_incidents(args.limit)}
+        elif command == "analyze":
+            result = analyze_ai_incident(
+                connection,
+                args.incident_id,
+                settings,
+                force=args.force,
+            )
+            payload = {
+                "analysis": result.analysis.to_dict(),
+                "cacheHit": result.cache_hit,
+                "fallbackUsed": result.fallback_used,
+            }
+        else:
+            limit = settings.ai_max_calls_per_run if args.limit is None else args.limit
+            limit = max(0, min(limit, settings.ai_max_calls_per_run, 100))
+            incident_ids = repository.pending_incidents(limit)
+            results = []
+            for incident_id in incident_ids:
+                result = analyze_ai_incident(connection, incident_id, settings)
+                results.append(
+                    {
+                        "incidentId": incident_id,
+                        "status": result.analysis.status.value,
+                        "provider": result.analysis.provider,
+                        "cacheHit": result.cache_hit,
+                        "fallbackUsed": result.fallback_used,
+                    }
+                )
+            payload = {
+                "requested": limit,
+                "processed": len(results),
+                "results": results,
+            }
+    print(json.dumps(payload, sort_keys=True, default=str))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
@@ -250,6 +310,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _drift(settings, args.drift_command, args)
         if args.command == "rca":
             return _rca(settings, args.rca_command, getattr(args, "incident_id", None))
+        if args.command == "ai":
+            return _ai(settings, args.ai_command, args)
         return asyncio.run(_ingest(settings, args.source))
     except (ValueError, psycopg.Error) as exc:
         print(
