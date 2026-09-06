@@ -140,9 +140,9 @@ export default async function Home() {
         {drift.results.length === 0 ? <div className="empty-state"><strong>{drift.message ?? "No drift evaluation recorded"}</strong><span>Insufficient baseline data is shown honestly.</span></div> : <div className="drift-summary-list">{drift.results.filter((result) => result.status !== "STABLE").slice(0, 4).map((result) => <div className="drift-summary-row" key={`${result.datasetSlug}:${result.columnName}:${result.method}`}><span><strong>{result.datasetName}</strong><small>{result.columnName} · {result.method}</small></span><DriftPill status={result.status} /></div>)}{drift.results.every((result) => result.status === "STABLE") && <div className="empty-state"><strong>All evaluated features are stable</strong><span>{drift.results.length} persisted checks are below their configured thresholds.</span></div>}</div>}
       </section>
 
-      <section className="panel quick-links"><Link className="text-link" href="/quality">Data quality →</Link><Link className="text-link" href="/drift">Drift →</Link><Link className="text-link" href="/lineage">Lineage →</Link><Link className="text-link" href="/incidents">Incidents →</Link></section>
+      <section className="panel quick-links"><Link className="text-link" href="/quality">Data quality →</Link><Link className="text-link" href="/drift">Drift →</Link><Link className="text-link" href="/lineage">Lineage →</Link><Link className="text-link" href="/incidents">Incidents →</Link><Link className="text-link" href="/reliability">Reliability →</Link></section>
 
-      <footer>Phase 3 · Deterministic quality, incidents, and lineage · No fabricated operational metrics</footer>
+      <footer>Phase 6 · Deterministic reliability evidence · No fabricated operational metrics</footer>
     </main>
   );
 }

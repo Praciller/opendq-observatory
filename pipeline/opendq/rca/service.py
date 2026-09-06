@@ -19,7 +19,7 @@ def _quality_signal(context: dict[str, Any], result: dict[str, Any]) -> Evidence
     rule_slug = context["rule_slug"]
     if "freshness" in rule_slug:
         cause, reason, weight = "FRESHNESS_DELAY", "freshness_rule_failed", 10.0
-    elif "gap" in rule_slug:
+    elif "gap" in rule_slug or "continuity" in rule_slug:
         cause, reason, weight = "TIMESTAMP_GAP", "timestamp_gap_rule_failed", 10.0
     elif "volume" in rule_slug:
         cause, reason, weight = "VOLUME_CHANGE", "volume_rule_failed", 10.0
