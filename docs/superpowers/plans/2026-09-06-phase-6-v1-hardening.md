@@ -65,34 +65,34 @@
 
 **Files:** `apps/web/app/layout.tsx`, all existing route pages, `apps/web/app/globals.css`, focused web tests, `docs/ui-review.md`.
 
-- [ ] Inspect `/`, `/quality`, `/drift`, `/incidents`, `/incidents/[id]`, `/lineage`, and `/reliability` for hierarchy, terminology, empty/error states, status semantics, dense evidence, table overflow, and navigation consistency.
-- [ ] Fix only genuine issues: semantic headings/landmarks, link labels, keyboard focus, visible status beyond color, table responsiveness, contrast, mobile spacing, and reduced-motion behavior if animation exists.
-- [ ] Preserve the existing visual language and avoid introducing a large component/design dependency; extract primitives only when duplication is already present.
-- [ ] Run browser-level QA with `agent-browser` at approximately 1440, 768, and 390 widths for the key routes; capture screenshots from real production data or clearly labeled deterministic local demo data.
-- [ ] Store the intentional screenshot set outside tracked runtime artifacts or in a clearly documented portfolio-assets location, and verify it contains no secrets.
+- [x] Inspect `/`, `/quality`, `/drift`, `/incidents`, `/incidents/[id]`, `/lineage`, and `/reliability` for hierarchy, terminology, empty/error states, status semantics, dense evidence, table overflow, and navigation consistency.
+- [x] Fix only genuine issues: semantic headings/landmarks, link labels, keyboard focus, visible status beyond color, table responsiveness, contrast, mobile spacing, and reduced-motion behavior if animation exists.
+- [x] Preserve the existing visual language and avoid introducing a large component/design dependency; extract primitives only when duplication is already present.
+- [x] Run browser-level QA with `agent-browser` at approximately 1440, 768, and 390 widths for the key routes; capture screenshots from real production data or clearly labeled deterministic local demo data.
+- [x] Store the intentional screenshot set outside tracked runtime artifacts or in a clearly documented portfolio-assets location, and verify it contains no secrets.
 
 ## Task 7: Perform release hardening and evidence review
 
 **Files:** `.github/workflows/ci.yml`, `.github/workflows/ingest.yml`, `docs/security-review.md`, `docs/database-query-review.md`, `docs/releases/v1.0.0-evidence.md`, `docs/releases/v1.0.0-checklist.md`.
 
-- [ ] Review CI permissions, concurrency, cache behavior, fork secret safety, pinned/official action versions, and deterministic independence from Neon; make only evidence-backed changes.
-- [ ] Review Python/npm dependencies, unused packages, secret/artifact hygiene, public mutation/inference handlers, API semantics, bounded arrays, sanitized errors, indexes, cascades, and expensive production query paths.
-- [ ] Run `scripts/secret-scan.ps1`, npm audit, available Python dependency security checks, Cloudflare reference search, and route-handler searches.
-- [ ] Record current production endpoint checks, migration state, scheduled workflow evidence, deployment/plan evidence, real snapshot counts, limitations, and provider verification without secrets.
-- [ ] Create the concise v1 checklist and do not mark any item complete without command or endpoint evidence.
+- [x] Review CI permissions, concurrency, cache behavior, fork secret safety, pinned/official action versions, and deterministic independence from Neon; make only evidence-backed changes.
+- [x] Review Python/npm dependencies, unused packages, secret/artifact hygiene, public mutation/inference handlers, API semantics, bounded arrays, sanitized errors, indexes, cascades, and expensive production query paths.
+- [x] Run `scripts/secret-scan.ps1`, npm audit, available Python dependency security checks, Cloudflare reference search, and route-handler searches.
+- [x] Record current production endpoint checks, migration state, scheduled workflow evidence, deployment/plan evidence, real snapshot counts, limitations, and provider verification without secrets.
+- [x] Create the concise v1 checklist and do not mark any item complete without command or endpoint evidence.
 
 ## Task 8: Full verification, feature CI, merge, deploy, and release
 
 **Files:** release evidence/checklist updates only after fresh outputs.
 
-- [ ] Run full Python gates: Ruff check, Ruff format check, mypy, pytest, failure scenario tests, demo guard tests, and the end-to-end recovery flow.
-- [ ] Run web test, lint, typecheck, and production build; run browser QA and confirm final API contracts.
-- [ ] Run migration verification from an empty database and confirm no Phase 6 migration exists unless justified.
-- [ ] Commit the hardening work, push `feat/v1-hardening`, and record the successful feature CI run ID/SHA.
-- [ ] Merge safely to `main`, require merge CI green, and record merge SHA/run ID.
-- [ ] Deploy the exact merged checkout to the existing canonical Vercel project only; verify READY, canonical alias, health, sources, quality, drift, incidents, lineage, RCA, AI, and reliability endpoints.
-- [ ] Run one final controlled `workflow_dispatch` from the verified v1 merge SHA and record the run ID/SHA and bounded AI behavior.
-- [ ] Capture final production browser screenshots and verify desktop/mobile routes.
+- [x] Run full Python gates: Ruff check, Ruff format check, mypy, pytest, failure scenario tests, demo guard tests, and the end-to-end recovery flow.
+- [x] Run web test, lint, typecheck, and production build; run browser QA and confirm final API contracts.
+- [x] Run migration verification from an empty database and confirm no Phase 6 migration exists unless justified.
+- [x] Commit the hardening work, push `feat/v1-hardening`, and record the successful feature CI run ID/SHA.
+- [x] Merge safely to `main`, require merge CI green, and record merge SHA/run ID.
+- [x] Deploy the exact merged checkout to the existing canonical Vercel project only; verify READY, canonical alias, health, sources, quality, drift, incidents, lineage, RCA, AI, and reliability endpoints.
+- [x] Run one final controlled `workflow_dispatch` from the verified v1 merge SHA and record the run ID/SHA and bounded AI behavior.
+- [x] Capture final production browser screenshots and verify desktop/mobile routes.
 - [ ] If all mandatory gates pass, create annotated tag `v1.0.0` on the exact verified merge SHA and a concise GitHub Release. If a mandatory owner-only action blocks this, record `BLOCKED`/`COMPLETE_WITH_LIMITATIONS` with the exact blocker and stop.
 - [ ] Do not begin v1.1 feature work after the release decision.
 
