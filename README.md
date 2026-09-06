@@ -1,118 +1,91 @@
 # OpenDQ Observatory
 
-Open-source data reliability, drift detection, lineage, and deterministic incident intelligence platform.
+Deterministic data reliability and observability for public-data pipelines—with quality validation, drift detection, incident lifecycle, lineage-aware blast radius, deterministic RCA, and optional AI-assisted incident explanations.
 
-OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engineering, Data Quality, Data Observability, Data Contracts, Lineage, and MLOps roles. It uses only public data and keeps the first release deterministic and free-tier aware.
+## Live demo
 
-> Screenshot placeholder: add a hosted dashboard capture after owner review.
+[OpenDQ Observatory](https://opendq-observatory.vercel.app/)
 
-## Project status
+The live dashboard is read-only and backed by persisted Vercel/Neon production evidence. Start with the system health panel, then follow the reviewer path below.
 
-**Phase 1.5:** Production ingestion foundation is frozen at `v0.1.0`. The Vercel/Neon deployment, scheduled ingestion, and idempotent persistence are verified.
+## What it solves
 
-**Phase 2:** The deterministic Data Quality Engine is frozen at `v0.2.0`.
+Public data pipelines can return HTTP 200 while quietly changing shape, freshness, validity, or distribution. OpenDQ turns those observations into explicit, queryable evidence instead of a single opaque health score.
 
-**Phase 3:** Deterministic incident detection, lineage, and blast-radius evidence are frozen at `v0.3.0`.
+## 5-minute review
 
-**Phase 4:** Versioned drift baselines, distribution/schema checks, drift incidents, and deterministic root-cause evidence are frozen at `v0.4.0`.
+1. Open the [live dashboard](https://opendq-observatory.vercel.app/).
+2. Review [/quality](https://opendq-observatory.vercel.app/quality) for rule-level evidence.
+3. Review [/drift](https://opendq-observatory.vercel.app/drift) for bounded PSI/schema signals.
+4. Open [/incidents](https://opendq-observatory.vercel.app/incidents) and inspect an incident.
+5. Follow deterministic RCA, evidence, and blast radius on the incident detail page.
+6. Open [/lineage](https://opendq-observatory.vercel.app/lineage) and [/reliability](https://opendq-observatory.vercel.app/reliability), then read the diagrams in [docs/architecture.md](docs/architecture.md).
 
-**Phase 5:** The optional AI Incident Copilot is implemented on a feature branch with deterministic fallback, provider routing, persisted cache, and a read-only public explanation surface.
+## Capability status
 
-### Hosted demo
+| Capability | Status |
+| --- | --- |
+| Public-data ingestion | Implemented |
+| Data contracts and idempotency | Implemented |
+| Data quality | Implemented |
+| Drift detection | Implemented |
+| Incident lifecycle | Implemented |
+| Lineage / blast radius | Implemented |
+| Deterministic RCA | Implemented |
+| AI Incident Copilot | Optional / provider-dependent; Groq live-verified for one bounded production smoke |
+| Streaming | Not part of v1 |
 
-- Public URL: [opendq-observatory.vercel.app](https://opendq-observatory.vercel.app/)
-- The Vercel Hobby deployment is backed by a Vercel-managed Neon PostgreSQL Free resource and returns HTTP 200 from `/api/health` with a healthy database.
-- `/api/sources` reports both Open-Meteo and USGS Earthquakes as enabled with successful ingestion metadata.
-- `/api/quality`, `/api/quality/sources`, and `/quality` expose persisted production rule results; the current real datasets report quality scores of 100.0 with volume checks explicitly skipped until five baseline runs exist.
-- `/api/incidents`, `/api/lineage`, `/incidents`, and `/lineage` expose read-only incident lifecycle and lineage evidence from Neon.
-- `/api/drift`, `/drift`, and incident detail RCA sections expose persisted drift metrics and deterministic evidence ranking.
-- GitHub Actions has a production `DATABASE_URL` secret and a scheduled ingestion workflow; the verified workflow is idempotent and reports `NO_CHANGE` when no new logical records are available.
-- The deployed resource currently has Neon Auth provisioned by the marketplace integration, although this application does not use authentication. Disabling that extra service requires owner email verification in the provider UI and remains an explicit follow-up.
-- The Vercel project is not connected to GitHub automatic deployments; production deployment is currently owner-triggered.
-- Local Docker PostgreSQL, migrations, live-source smoke evidence, and seeded records remain local-only verification.
+## Architecture and production flow
 
-### Implemented
-
-- Python 3.12+ ingestion package with structured logs, explicit error taxonomy, Pydantic contracts, and CLI.
-- Open-Meteo hourly forecast ingestion for a fixed Bangkok demo location.
-- USGS GeoJSON earthquake feed ingestion.
-- PostgreSQL migrations, ingestion-run lifecycle, provenance-bearing observations, and database-enforced idempotency.
-- Deterministic quality rules for freshness, completeness, uniqueness, validity/range, timestamp continuity, and volume baselines, with persisted explainable results and transparent scores.
-- Deterministic incident lifecycle with database-enforced active deduplication, event history, automatic recovery, and trusted CLI acknowledgement.
-- Idempotent provider-neutral lineage seed, bounded downstream traversal, and incident blast-radius snapshots.
-- Versioned drift baselines, bounded PSI/location checks, schema comparison, explicit insufficient-baseline states, and drift incident reconciliation.
-- Deterministic RCA taxonomy, weighted ranking, confidence categories, evidence chains, algorithm versioning, and duplicate-analysis fingerprints.
-- Optional AI Incident Copilot with Groq-primary/Gemini-secondary structured output, public-only bounded evidence, evidence-ID grounding validation, fingerprint caching, quotas, and deterministic fallback.
-- Next.js App Router status, quality, drift, incident/RCA, and lineage pages with database-aware read-only APIs.
-- Next.js quality API/detail page, Docker Compose PostgreSQL, deterministic tests, GitHub Actions CI, and six-hour ingestion-plus-quality workflow.
-
-### Planned
-
-Streaming, Kafka/Redpanda, authentication, notifications, billing, and multi-tenancy remain deferred. AI explanations are implemented as an optional non-authoritative layer; streaming provider output, notifications, and autonomous actions are not.
-
-## Architecture
-
-```text
-Open-Meteo / USGS → fetch → parse → normalize → Pydantic contract
-                                      ↓
-                              PostgreSQL + run record
-                                      ↓
-                         quality evaluation + drift evaluation
-                                      ↓
-                         incidents + lineage + deterministic RCA
-                                      ↓
-                 optional AI explanation + persisted cache
-                                      ↓
-                         read-only APIs/UI
+```mermaid
+flowchart TD
+    Sources[Open-Meteo / USGS] --> Actions[GitHub Actions · six-hour batch]
+    Actions --> Pipeline[Python ingestion, quality, drift, incidents, RCA]
+    Pipeline --> DB[(Neon PostgreSQL)]
+    DB --> Web[Next.js read-only APIs and dashboard]
+    Pipeline --> AI[Optional Groq → Gemini → deterministic fallback]
+    AI --> DB
+    Web --> Vercel[Vercel Hobby]
 ```
 
-Production uses Vercel Hobby for the web app, a Vercel-managed Neon PostgreSQL Free resource for storage, and GitHub Actions for scheduled micro-batches. Local development uses Docker Compose PostgreSQL. Cloudflare is not part of this project.
+The scheduler is GitHub Actions, not Vercel. See [architecture](docs/architecture.md) and the smaller [evidence/data-flow diagram](docs/data-flow.md).
+
+```text
+Observation → Rule Result → Drift Result → Incident → Evidence
+           → Lineage Impact → Deterministic RCA → Optional explanation
+```
+
+## Engineering decisions
+
+- deterministic-first: AI cannot change quality, drift, incident, lineage, or RCA state;
+- explicit SQL and visible migrations are the schema authority;
+- database-enforced observation idempotency and one active incident per dataset/rule;
+- quality outcome, drift outcome, and execution reliability remain separate;
+- lineage impact is snapshotted when an incident opens;
+- deterministic RCA runs before optional AI and keeps evidence IDs;
+- external providers receive bounded `PUBLIC_ONLY` data, with schema validation, grounding checks, quotas, caching, and deterministic fallback;
+- public GET routes read persisted state and never trigger inference or mutation;
+- the design stays batch-based and free-tier aware.
+
+## Reliability and safety
+
+The [SLO definition](docs/slo.md) derives execution SLIs from persisted history and reports `INSUFFICIENT_HISTORY` where evidence is short. The [free-tier architecture](docs/free-tier-architecture.md) documents the current cost boundary and its policy caveat. The local [incident demo](docs/demo.md) is guarded by `APP_ENV=demo`/`DEMO_DATABASE_URL` and refuses production-looking targets.
+
+Production currently uses deterministic fallback for most AI analyses. Groq adapters, routing, structured validation, evidence grounding, and persistence are implemented and tested; one bounded Groq production smoke is persisted and live-verified. Gemini is not live-verified. AI remains non-authoritative.
 
 ## Local setup
 
-Requirements: Python 3.12+, Node.js 22+, npm, and Docker Desktop.
+Requirements: Python 3.12+, Node.js 22+, npm, `uv`, and Docker Desktop.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up -d postgres
 uv venv pipeline/.venv
-uv pip install --python pipeline/.venv/Scripts/python.exe -e ".[dev]" --directory pipeline
+uv pip install --python pipeline/.venv/Scripts/python.exe -e "pipeline[dev]"
 pipeline/.venv/Scripts/python.exe -m opendq migrate
 ```
 
-The `.env` file is local-only and ignored by Git. The Compose credentials are demo-only local credentials, not production secrets.
-
-## Ingestion
-
-```powershell
-pipeline/.venv/Scripts/python.exe -m opendq ingest open-meteo
-pipeline/.venv/Scripts/python.exe -m opendq ingest usgs
-pipeline/.venv/Scripts/python.exe -m opendq ingest all
-pipeline/.venv/Scripts/python.exe -m opendq lineage seed
-pipeline/.venv/Scripts/python.exe -m opendq drift baseline create open-meteo
-pipeline/.venv/Scripts/python.exe -m opendq drift evaluate all
-pipeline/.venv/Scripts/python.exe -m opendq rca show <incident-id>
-pipeline/.venv/Scripts/python.exe -m opendq ai analyze-open --limit 3
-```
-
-Repeated ingestion is safe: weather uses dataset/location/timestamp uniqueness and USGS uses the canonical event ID. A repeat with no new logical records is reported as `NO_CHANGE` and exits successfully.
-
-## Incidents and lineage
-
-```powershell
-pipeline/.venv/Scripts/python.exe -m opendq incident list
-pipeline/.venv/Scripts/python.exe -m opendq incident list --status open
-pipeline/.venv/Scripts/python.exe -m opendq incident show <incident-id>
-pipeline/.venv/Scripts/python.exe -m opendq incident acknowledge <incident-id>
-pipeline/.venv/Scripts/python.exe -m opendq lineage show open-meteo
-pipeline/.venv/Scripts/python.exe -m opendq lineage impact open-meteo
-```
-
-The public app is read-only for incident state, baselines, and RCA. A trusted operator CLI may acknowledge an OPEN incident; quality PASS and stable drift results resolve active incidents automatically. See [incident semantics](docs/incidents.md), [drift](docs/drift.md), and [root-cause analysis](docs/root-cause-analysis.md).
-
-AI explanations are optional and generated by the trusted bounded workflow. The public `GET /api/incidents/<id>/ai` route never triggers inference; it reads persisted output or reports that no output is available. See [AI Incident Copilot](docs/ai-incident-copilot.md).
-
-## Web app
+Run the web app:
 
 ```powershell
 cd apps/web
@@ -120,37 +93,57 @@ npm ci
 npm run dev
 ```
 
-Open `http://localhost:3000`. Without a database, the page reports a degraded/unavailable state; it does not invent operational metrics.
+The web app reports unavailable/degraded state without a database; it does not invent operational metrics.
 
-## Tests and quality gates
+## Safe demo and benchmark
+
+```powershell
+$env:APP_ENV = "demo"
+$env:DEMO_DATABASE_URL = "postgresql://opendq:opendq@localhost:5432/opendq_demo"
+pipeline/.venv/Scripts/python.exe -m opendq demo incident
+Remove-Item Env:APP_ENV, Env:DEMO_DATABASE_URL
+```
+
+The demo narrates healthy data → quality/drift failure → incident → lineage impact → RCA → fallback → recovery. It never targets Neon. The local benchmark is `scripts/benchmark.ps1`; results and environment are recorded in [docs/performance-baseline.md](docs/performance-baseline.md).
+
+## Testing and release evidence
+
+Python gates:
 
 ```powershell
 cd pipeline
-.venv/Scripts/python.exe -m pytest
 .venv/Scripts/ruff.exe check opendq tests
 .venv/Scripts/ruff.exe format --check opendq tests
 .venv/Scripts/mypy.exe opendq
-cd ../apps/web
-npm ci
+.venv/Scripts/python.exe -m pytest
+```
+
+Web gates:
+
+```powershell
+cd apps/web
+npm test
 npm run lint
 npm run typecheck
 npm run build
 ```
 
-CI uses disposable PostgreSQL and deterministic fixtures. It does not call public APIs. Live source smoke checks are separate and are reported as `NOT_RUN` when unavailable.
+CI uses disposable PostgreSQL and deterministic fixtures. It does not call public APIs or external AI providers. Release evidence, security checks, browser QA, screenshots, and known limitations live in [docs/releases/v1.0.0-evidence.md](docs/releases/v1.0.0-evidence.md).
+
+## Interview path and trade-offs
+
+Read [docs/interview-guide.md](docs/interview-guide.md) for the rationale behind idempotency, quality versus drift, state transitions, PSI, RCA boundaries, AI safety, and a hypothetical streaming boundary.
+
+OpenDQ is intentionally batch, small-source, PostgreSQL-backed, and deterministic. PSI is a compact signal rather than universal drift truth; RCA is evidence ranking rather than causal discovery; Neon Free and Vercel Hobby impose resource constraints; AI providers are optional and quota-bound.
+
+## Roadmap boundary
+
+Streaming, Kafka/Redpanda, authentication, notifications, billing, multi-tenancy, autonomous remediation, and additional AI surfaces are deferred. They are not required to demonstrate the current reliability problem well.
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
-- [Data model](docs/data-model.md)
-- [Ingestion](docs/ingestion.md)
-- [Data quality roadmap](docs/data-quality.md)
-- [Drift detection](docs/drift.md)
-- [Deterministic root-cause analysis](docs/root-cause-analysis.md)
-- [Optional AI Incident Copilot](docs/ai-incident-copilot.md)
-- [Deployment](docs/deployment.md)
-- [Architecture decisions](docs/decisions/)
-
-## Free-tier philosophy
-
-The project favors scheduled micro-batches, public endpoints without credentials, one small PostgreSQL service, bounded raw provenance, and portable business logic. Provider settings that require owner verification, including disabling the unintended Neon Auth add-on and enabling GitHub automatic deployments, are reported separately from the verified production path.
+- [Architecture](docs/architecture.md) · [Data flow](docs/data-flow.md) · [Data model](docs/data-model.md)
+- [SLOs](docs/slo.md) · [Free-tier architecture](docs/free-tier-architecture.md) · [Performance baseline](docs/performance-baseline.md)
+- [Quality](docs/data-quality.md) · [Drift](docs/drift.md) · [Incidents](docs/incidents.md) · [RCA](docs/root-cause-analysis.md) · [Lineage](docs/lineage.md)
+- [AI Incident Copilot](docs/ai-incident-copilot.md) · [Local demo](docs/demo.md) · [Interview guide](docs/interview-guide.md) · [Deployment](docs/deployment.md)
+- [Architecture decisions](docs/decisions/) · [Production snapshot](docs/production-snapshot-2026-09-06.md)

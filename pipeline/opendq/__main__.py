@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import sys
 from collections.abc import Sequence
 from typing import Any
@@ -14,7 +15,9 @@ import psycopg
 
 from opendq.ai.repository import AIIncidentRepository
 from opendq.ai.service import analyze_incident as analyze_ai_incident
+from opendq.benchmark import run_benchmark
 from opendq.config import Settings
+from opendq.demo import run_incident_demo
 from opendq.drift.repository import DriftRepository
 from opendq.drift.service import create_baselines
 from opendq.drift.service import evaluate_dataset as evaluate_drift_dataset
@@ -97,6 +100,15 @@ def build_parser() -> argparse.ArgumentParser:
         "analyze-open", help="analyze a bounded batch of open incidents"
     )
     ai_batch.add_argument("--limit", type=int, default=None)
+    demo = commands.add_parser("demo", help="run a guarded local demonstration")
+    demo_commands = demo.add_subparsers(dest="demo_command", required=True)
+    demo_incident = demo_commands.add_parser(
+        "incident", help="run the incident and recovery narrative"
+    )
+    demo_incident.add_argument("--database-url", dest="demo_database_url")
+    benchmark = commands.add_parser("benchmark", help="run a guarded local performance baseline")
+    benchmark.add_argument("--database-url", dest="benchmark_database_url")
+    benchmark.add_argument("--runs", type=int, default=5)
     return parser
 
 
@@ -290,9 +302,34 @@ def _ai(settings: Settings, command: str, args: argparse.Namespace) -> int:
     return 0
 
 
+def _demo(args: argparse.Namespace) -> int:
+    if args.demo_command != "incident":
+        raise ValueError(f"unsupported demo command: {args.demo_command}")
+    payload = run_incident_demo(
+        args.demo_database_url or os.getenv("DEMO_DATABASE_URL", ""),
+        os.getenv("DATABASE_URL"),
+    )
+    print(json.dumps(payload, sort_keys=True, default=str))
+    return 0
+
+
+def _benchmark(args: argparse.Namespace) -> int:
+    payload = run_benchmark(
+        args.benchmark_database_url or os.getenv("BENCHMARK_DATABASE_URL", ""),
+        runs=args.runs,
+        production_database_url=os.getenv("DATABASE_URL"),
+    )
+    print(json.dumps(payload, sort_keys=True, default=str))
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "demo":
+            return _demo(args)
+        if args.command == "benchmark":
+            return _benchmark(args)
         settings = Settings.from_env()
         configure_logging(settings.log_level)
         if args.command == "migrate":

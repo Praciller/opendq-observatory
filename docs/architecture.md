@@ -38,3 +38,23 @@ Phase 4 keeps drift separate from quality. Trusted baseline creation stores comp
 
 The optional AI layer receives only bounded `PUBLIC_ONLY` evidence and cannot mutate deterministic state. Groq is tried before Gemini when explicitly enabled and configured; provider failures fall back to a persisted deterministic explanation. The public app reads `ai_incident_analyses` and never invokes inference from a GET request.
 
+## Runtime architecture
+
+```mermaid
+flowchart TD
+    Sources[Open-Meteo / USGS] --> Actions[GitHub Actions every six hours]
+    Actions --> Pipeline[Python ingestion and evaluation]
+    Pipeline --> DB[(PostgreSQL / Neon)]
+    DB --> Quality[Quality results]
+    Quality --> Drift[Drift results]
+    Drift --> Incidents[Incident lifecycle]
+    Incidents --> Lineage[Lineage and blast-radius snapshot]
+    Incidents --> RCA[Deterministic RCA]
+    RCA --> AI[Optional AI Copilot]
+    DB --> Web[Next.js read-only APIs and dashboard]
+    AI --> Web
+    Web --> Vercel[Vercel Hobby]
+```
+
+GitHub Actions owns scheduled execution. Vercel serves the read-only web/API surface and does not perform ingestion or trigger AI inference from GET requests.
+
