@@ -75,4 +75,4 @@ Quality evidence is not itself an incident. After a completed evaluation, reconc
 - `PASS` resolves an active incident for the dataset/rule, including an acknowledged incident.
 - `WARN` and `SKIPPED` do not create incidents; `SKIPPED` also does not resolve an existing incident because it means not evaluated.
 
-The quality engine remains responsible for whether a rule passes. The incident engine is responsible only for the stateful operational interpretation and event history. AI root-cause analysis, drift detection, and streaming remain deferred.
+The quality engine remains responsible for whether a rule passes. The incident engine is responsible only for the stateful operational interpretation and event history. Drift is a separate statistical behavior check; it does not change the quality score. Deterministic RCA consumes both evidence streams but does not replace either one. AI explanations and streaming remain deferred.

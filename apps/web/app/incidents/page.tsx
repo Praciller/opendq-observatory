@@ -15,8 +15,8 @@ export default async function IncidentsPage() {
       <header className="hero quality-hero">
         <p className="eyebrow">Phase 3 · Incident Detection</p>
         <h1>Incident history</h1>
-        <p className="intro">Stateful interpretations of persisted quality evidence. Incidents are deterministic, lineage-aware, and read-only here.</p>
-        <nav className="page-nav"><Link className="text-link" href="/">← System status</Link><Link className="text-link" href="/lineage">View lineage →</Link></nav>
+        <p className="intro">Stateful interpretations of persisted quality and drift evidence. Incidents are deterministic, lineage-aware, and read-only here.</p>
+        <nav className="page-nav"><Link className="text-link" href="/">← System status</Link><Link className="text-link" href="/drift">View drift →</Link><Link className="text-link" href="/lineage">View lineage →</Link></nav>
       </header>
       {response.incidents.length === 0 ? (
         <section className="panel empty-state">

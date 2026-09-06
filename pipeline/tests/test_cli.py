@@ -47,3 +47,21 @@ def test_cli_exposes_trusted_lineage_seed() -> None:
     args = build_parser().parse_args(["lineage", "seed"])
 
     assert (args.command, args.lineage_command) == ("lineage", "seed")
+
+
+def test_cli_exposes_drift_and_rca_commands() -> None:
+    drift = build_parser().parse_args(["drift", "evaluate", "open-meteo"])
+    baseline = build_parser().parse_args(["drift", "baseline", "create", "usgs"])
+    rca = build_parser().parse_args(["rca", "show", "incident-id"])
+
+    assert (drift.command, drift.drift_command, drift.dataset) == (
+        "drift",
+        "evaluate",
+        "open-meteo",
+    )
+    assert (baseline.command, baseline.drift_command, baseline.baseline_command) == (
+        "drift",
+        "baseline",
+        "create",
+    )
+    assert (rca.command, rca.rca_command, rca.incident_id) == ("rca", "show", "incident-id")

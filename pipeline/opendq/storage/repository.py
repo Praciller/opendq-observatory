@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 import psycopg
 from psycopg.types.json import Jsonb
 
+from opendq.drift.repository import DriftRepository
 from opendq.quality.defaults import default_rules_for_dataset
 from opendq.quality.models import (
     IngestionVolume,
@@ -66,6 +67,8 @@ class Repository:
                 if dataset_row is None:
                     raise RuntimeError("dataset insert did not return an id")
                 dataset_id = dataset_row[0]
+        if dataset_slug in {"hourly-weather", "earthquake-events"}:
+            DriftRepository(self.connection).ensure_schema_version(int(dataset_id), dataset_slug)
         return int(source_id), int(dataset_id)
 
     def create_ingestion_run(self, source_id: int, dataset_id: int) -> UUID:

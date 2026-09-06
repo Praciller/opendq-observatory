@@ -6,7 +6,7 @@ export type IncidentSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 export type Incident = {
   id: string;
   incidentKey: string;
-  incidentKind: "DATA_QUALITY" | "EVALUATION_ERROR";
+  incidentKind: "DATA_QUALITY" | "EVALUATION_ERROR" | "DATA_DRIFT";
   datasetSlug: string;
   datasetName: string;
   ruleSlug: string;

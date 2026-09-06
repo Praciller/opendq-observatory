@@ -8,6 +8,8 @@ from uuid import UUID
 
 import psycopg
 
+from opendq.drift.config import feature_for
+from opendq.drift.repository import DriftRepository
 from opendq.incidents.models import IncidentKind
 from opendq.incidents.repository import IncidentRepository
 from opendq.lineage.repository import LineageRepository
@@ -77,6 +79,13 @@ def reconcile_quality_evaluation(
                 evidence=_evidence(result),
                 impacts=impacts,
             )
+            try:
+                from opendq.rca.service import analyze_incident
+
+                analyze_incident(connection, incident_id)
+            except Exception:
+                LOGGER.exception("deterministic RCA failed", extra={"incident_id": incident_id})
+                connection.rollback()
             if any(row["id"] == incident_id for row in before):
                 observed_again += 1
             else:
@@ -107,5 +116,76 @@ def reconcile_quality_evaluation(
                     event="incident_resolved",
                     status="RESOLVED",
                     severity=result["severity"],
+                )
+    return {"opened": opened, "observed_again": observed_again, "resolved": resolved}
+
+
+def reconcile_drift_evaluation(
+    connection: psycopg.Connection[Any], evaluation_run_id: UUID
+) -> dict[str, int]:
+    """Open, observe, or resolve only DATA_DRIFT incidents from persisted drift results."""
+
+    incidents = IncidentRepository(connection)
+    drift = DriftRepository(connection)
+    lineage = LineageRepository(connection)
+    opened = 0
+    observed_again = 0
+    resolved = 0
+    for result in drift.drift_results_for_run(evaluation_run_id):
+        feature = feature_for(result["dataset_slug"], result["column_name"], result["method"])
+        rule_id = drift.ensure_drift_rule(int(result["dataset_id"]), feature)
+        summary = (
+            f"{result['dataset_name']} {result['column_name']} {result['method']} drift detected. "
+            f"Observed metric: {result['observed_metric']}; threshold: {result['threshold']}."
+        )
+        incident_key = f"{result['dataset_slug']}:drift:{result['column_name']}:{result['method']}"
+        if result["status"] == "DRIFT":
+            try:
+                impacts = downstream_blast_radius(
+                    lineage, f"dataset:{result['dataset_slug']}", max_depth=10
+                )
+            except ValueError:
+                impacts = []
+            before = incidents.list_incidents(dataset=result["dataset_slug"])
+            incident_id = incidents.open_or_observe_drift(
+                result, rule_id=rule_id, summary=summary, impacts=impacts
+            )
+            try:
+                from opendq.rca.service import analyze_incident
+
+                analyze_incident(connection, incident_id)
+            except Exception:
+                LOGGER.exception("deterministic RCA failed", extra={"incident_id": incident_id})
+                connection.rollback()
+            if any(
+                row["id"] == incident_id and row["incident_key"] == incident_key for row in before
+            ):
+                observed_again += 1
+            else:
+                opened += 1
+            log_event(
+                LOGGER,
+                incident_id=incident_id,
+                incident_key=incident_key,
+                dataset=result["dataset_slug"],
+                feature=result["column_name"],
+                event="drift_incident_reconciled",
+                status=result["status"],
+                impact_count=len(impacts),
+            )
+        elif result["status"] == "STABLE":
+            resolved_id = incidents.resolve_drift_if_active(
+                result, rule_id=rule_id, summary=f"{result['column_name']} drift recovered."
+            )
+            if resolved_id:
+                resolved += 1
+                log_event(
+                    LOGGER,
+                    incident_id=resolved_id,
+                    incident_key=incident_key,
+                    dataset=result["dataset_slug"],
+                    feature=result["column_name"],
+                    event="drift_incident_resolved",
+                    status="STABLE",
                 )
     return {"opened": opened, "observed_again": observed_again, "resolved": resolved}

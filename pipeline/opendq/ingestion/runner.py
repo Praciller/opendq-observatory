@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from dataclasses import replace
 from time import perf_counter
 
+from opendq.drift.service import evaluate_dataset as evaluate_drift_dataset
 from opendq.errors import ErrorCode, IngestionError
 from opendq.ingestion.results import IngestionResult
 from opendq.logging import log_event
@@ -109,6 +110,23 @@ async def run_source(repository: Repository, adapter: SourceAdapter) -> Ingestio
                 quality_status=quality.status,
                 quality_score=quality.score,
             )
+            try:
+                drift = evaluate_drift_dataset(
+                    repository.connection,
+                    adapter.dataset_slug,
+                    triggered_by=f"ingestion:{result.run_id}",
+                )
+                result = replace(
+                    result,
+                    drift_evaluation_run_id=drift.evaluation_run_id,
+                    drift_status=drift.status,
+                )
+            except Exception:
+                LOGGER.exception(
+                    "drift evaluation failed after ingestion",
+                    extra={"dataset": adapter.dataset_slug, "ingestion_run_id": str(result.run_id)},
+                )
+                result = replace(result, drift_error="DRIFT_EVALUATION_ERROR")
         except Exception:
             LOGGER.exception(
                 "quality evaluation failed after ingestion",

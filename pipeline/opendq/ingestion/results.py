@@ -21,10 +21,19 @@ class IngestionResult:
     quality_status: str | None = None
     quality_score: float | None = None
     quality_error: str | None = None
+    drift_evaluation_run_id: UUID | None = None
+    drift_status: str | None = None
+    drift_error: str | None = None
 
     @property
     def exit_code(self) -> int:
-        return 0 if self.status in {"SUCCESS", "NO_CHANGE"} and self.quality_error is None else 1
+        return (
+            0
+            if self.status in {"SUCCESS", "NO_CHANGE"}
+            and self.quality_error is None
+            and self.drift_error is None
+            else 1
+        )
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -42,4 +51,9 @@ class IngestionResult:
             "quality_status": self.quality_status,
             "quality_score": self.quality_score,
             "quality_error": self.quality_error,
+            "drift_evaluation_run_id": str(self.drift_evaluation_run_id)
+            if self.drift_evaluation_run_id
+            else None,
+            "drift_status": self.drift_status,
+            "drift_error": self.drift_error,
         }

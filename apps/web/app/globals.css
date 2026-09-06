@@ -67,6 +67,22 @@ h3 { margin: 0; font-size: 1rem; }
 .incident-open { color: #ff9d9d; background: rgba(255, 120, 120, .12); }
 .incident-acknowledged { color: #f4c36a; background: rgba(244, 195, 106, .12); }
 .incident-resolved { color: var(--accent); background: rgba(114, 214, 194, .1); }
+.drift-stable { color: var(--accent); background: rgba(114, 214, 194, .1); }
+.drift-warn { color: #f4c36a; background: rgba(244, 195, 106, .12); }
+.drift-drift, .drift-error { color: #ff9d9d; background: rgba(255, 120, 120, .12); }
+.drift-skipped { color: #b7c5ca; background: rgba(183, 197, 202, .1); }
+.drift-list, .drift-summary-list { margin-top: 1rem; }
+.drift-row, .drift-summary-row, .rca-candidate { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem 0; border-top: 1px solid var(--line); }
+.drift-row > div:first-child, .drift-summary-row span:first-child, .rca-candidate span { display: grid; gap: .25rem; }
+.drift-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; color: var(--muted); font-size: .78rem; }
+.drift-summary-row small, .rca-candidate small { color: var(--muted); font-size: .76rem; }
+.rca-summary { display: grid; gap: .65rem; margin-top: 1rem; }
+.rca-summary strong { font-size: 1.15rem; text-transform: capitalize; }
+.rca-summary p { margin: 0; }
+.rca-high { color: var(--accent); background: rgba(114, 214, 194, .1); }
+.rca-medium { color: #f4c36a; background: rgba(244, 195, 106, .12); }
+.rca-low, .rca-unknown { color: #b7c5ca; background: rgba(183, 197, 202, .1); }
+.rca-candidates { margin-top: 1rem; }
 .evidence-block { overflow-x: auto; margin: 1rem 0 0; padding: 1rem; border: 1px solid var(--line); border-radius: .7rem; color: #c5d3d8; font-size: .78rem; }
 .event-list, .impact-list, .incident-summary-list { margin-top: 1rem; }
 .event-row, .impact-row, .incident-summary-row { padding: .85rem 0; border-top: 1px solid var(--line); }
@@ -99,6 +115,7 @@ footer { padding: 1rem .25rem; color: #66808c; font-size: .75rem; }
   .quality-summary-row, .quality-detail-heading { align-items: flex-start; flex-direction: column; }
   .quality-summary-meta, .quality-score-block { justify-items: start; }
   .incident-row-heading, .incident-detail-heading { align-items: flex-start; flex-direction: column; }
+  .drift-row, .drift-summary-row { align-items: flex-start; flex-direction: column; }
   .lineage-stage { grid-template-columns: 1fr; }
 }
 
