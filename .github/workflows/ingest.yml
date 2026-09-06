@@ -17,6 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      AI_COPILOT_ENABLED: ${{ vars.AI_COPILOT_ENABLED || 'false' }}
+      AI_ALLOWED_DATA_CLASSIFICATION: PUBLIC_ONLY
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
+      GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -41,3 +47,6 @@ jobs:
       - name: Ingest sources, evaluate quality, drift, incidents, and RCA
         working-directory: pipeline
         run: uv run python -m opendq ingest all
+      - name: Generate bounded incident explanations
+        working-directory: pipeline
+        run: uv run python -m opendq ai analyze-open --limit 3

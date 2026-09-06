@@ -37,6 +37,7 @@ The score is denormalized on `quality_evaluation_runs` for efficient dashboard r
 - `drift_results` stores one method/feature result with status, metric, threshold, sample counts, baseline version, windows, and explainable details.
 - `root_cause_analyses` stores the incident-linked top cause, confidence, algorithm version, deterministic fingerprint, summary, and candidate details.
 - `root_cause_evidence` stores each ranked supporting signal and its source reference. Historical RCA rows remain reproducible when the next evaluation changes.
+- `ai_incident_analyses` stores an optional schema-validated explanation, provider/model metadata, prompt version, input fingerprint, deterministic RCA reference, bounded metrics, attempts, cache state, and safe error codes. Raw prompts, raw provider responses, credentials, and unrestricted source payloads are not stored.
 
 Drift incidents use the existing active dataset/rule uniqueness constraint with explicit drift rules and separate drift evaluation/result references; they are not converted into quality results.
 

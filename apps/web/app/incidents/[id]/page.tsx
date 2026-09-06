@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { getAiAnalysis } from "../../../lib/ai";
 import { getIncident } from "../../../lib/incidents";
 import { getRca } from "../../../lib/rca";
 
@@ -9,6 +10,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   const response = await getIncident(id);
   const rcaResponse = await getRca(id);
+  const aiResponse = await getAiAnalysis(id);
   const incident = response.incident;
   return (
     <main className="shell">
@@ -32,6 +34,11 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
           <section className="panel" aria-labelledby="rca-heading">
             <div className="section-heading"><div><p className="eyebrow">Evidence ranking</p><h2 id="rca-heading">Deterministic Root Cause Analysis</h2></div><span className="count-label">No AI inference</span></div>
             {!rcaResponse.analysis ? <div className="empty-state"><strong>{rcaResponse.message ?? "No RCA analysis is available."}</strong><span>Analysis is created when an incident is opened or meaningfully updated.</span></div> : <div className="rca-content"><div className="rca-summary"><strong>{rcaResponse.analysis.topCause.replaceAll("_", " ")}</strong><span className={`status-pill rca-${rcaResponse.analysis.confidence.toLowerCase()}`}>{rcaResponse.analysis.confidence} confidence</span><p className="muted">{rcaResponse.analysis.summary}</p></div><div className="rca-candidates">{(rcaResponse.analysis.details.candidates as Array<{cause: string; score: number; rank: number; confidence: string}> | undefined)?.map((candidate) => <div className="rca-candidate" key={candidate.cause}><span><strong>#{candidate.rank} {candidate.cause.replaceAll("_", " ")}</strong><small>{candidate.confidence} · score {candidate.score}</small></span></div>)}</div><div className="event-list">{rcaResponse.analysis.evidence.map((evidence, index) => <div className="event-row" key={`${evidence.reasonCode}-${index}`}><div><strong>{evidence.reasonCode.replaceAll("_", " ")}</strong><span className="muted">{evidence.evidenceType} · weight {evidence.weight}</span></div><span className="muted">{evidence.sourceTable}</span></div>)}</div><p className="muted">Algorithm {rcaResponse.analysis.algorithmVersion} · fingerprint {rcaResponse.analysis.evidenceFingerprint.slice(0, 12)}…</p></div>}
+          </section>
+          <section className="panel ai-panel" aria-labelledby="ai-heading">
+            <div className="section-heading"><div><p className="eyebrow">Optional explanation layer</p><h2 id="ai-heading">AI Incident Copilot</h2></div><span className="count-label">Read-only</span></div>
+            <p className="muted">Generated explanation based on deterministic OpenDQ evidence.</p>
+            {!aiResponse.analysis ? <div className="empty-state"><strong>{aiResponse.message ?? "No AI incident explanation is available."}</strong><span>AI analysis is persisted by the bounded pipeline workflow; this page never triggers inference.</span></div> : <div className="ai-content"><div className="ai-status-row"><span className={`status-pill ai-${aiResponse.analysis.status.toLowerCase()}`}>{aiResponse.analysis.status}</span><span className="muted">{aiResponse.analysis.provider} · {aiResponse.analysis.model}</span></div><div className="ai-copy"><strong>{aiResponse.analysis.explanation.summary}</strong><p>{aiResponse.analysis.explanation.probableCauseExplanation}</p></div>{aiResponse.analysis.explanation.evidenceHighlights.length > 0 && <div><p className="eyebrow">Evidence highlights</p><div className="event-list">{aiResponse.analysis.explanation.evidenceHighlights.map((item) => <div className="event-row" key={item.evidenceId}><strong>{item.evidenceId}</strong><span className="muted">{item.text}</span></div>)}</div></div>}<div className="ai-columns"><div><p className="eyebrow">Suggested investigation</p><ol>{aiResponse.analysis.explanation.investigationSteps.map((step) => <li key={step}>{step}</li>)}</ol></div><div><p className="eyebrow">Uncertainties</p>{aiResponse.analysis.explanation.uncertainties.length === 0 ? <p className="muted">No additional uncertainties recorded.</p> : <ul>{aiResponse.analysis.explanation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>}</div></div><p className="muted">Prompt {aiResponse.analysis.promptVersion} · generated {new Date(aiResponse.analysis.createdAt).toLocaleString()} · {aiResponse.analysis.cacheHit ? "cache hit" : "new analysis"}</p></div>}
           </section>
           <section className="panel">
             <div className="section-heading"><h2>Lifecycle</h2><span className="count-label">{incident.events.length} events</span></div>

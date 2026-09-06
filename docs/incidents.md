@@ -24,8 +24,16 @@ The public application and all public API routes are read-only. A trusted operat
 
 An incident references its first/latest evaluation run and quality result. When first opened, the incident captures the current bounded downstream lineage traversal in `incident_impacts`. Repeated observations do not overwrite the initial snapshot, preserving historical explainability.
 
-The `/api/incidents` endpoint supports bounded status, dataset, and severity filters. `/api/incidents/<id>` exposes lifecycle events, deterministic evidence, captured impact, and `/api/incidents/<id>/rca` exposes the latest persisted RCA. `/incidents` and `/incidents/<id>` render the same data.
+The `/api/incidents` endpoint supports bounded status, dataset, and severity filters. `/api/incidents/<id>` exposes lifecycle events, deterministic evidence, captured impact, and `/api/incidents/<id>/rca` exposes the latest persisted RCA. `/api/incidents/<id>/ai` only reads the latest persisted optional explanation; it never triggers inference. `/incidents` and `/incidents/<id>` render the same data.
 
 ## Deterministic RCA
 
 When an incident opens or receives meaningful new evidence, the pipeline ranks controlled causes such as `UPSTREAM_SOURCE_FAILURE`, `SCHEMA_CHANGE`, `FRESHNESS_DELAY`, `TIMESTAMP_GAP`, `INVALID_VALUES`, `VOLUME_CHANGE`, `DISTRIBUTION_SHIFT`, `DATABASE_OR_PIPELINE_ERROR`, and `UNKNOWN`. Direct evidence has the highest weight; temporal/dataset alignment and upstream lineage context add bounded support. Scores and evidence IDs are persisted with `deterministic-rca-v1`. The result says “probable cause,” not “proven root cause.”
+
+## Optional AI explanation
+
+The AI Incident Copilot is subordinate to deterministic RCA. It receives a
+bounded public-only evidence DTO and returns a schema-validated explanation
+with grounded evidence IDs, suggested investigation steps, and explicit
+uncertainties. If providers are disabled or fail, the pipeline persists a
+deterministic fallback. AI output never changes incident state or RCA.

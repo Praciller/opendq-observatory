@@ -15,6 +15,7 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
         "003_incidents_lineage.sql",
         "004_drift_rca.sql",
         "005_reclassify_drift_incidents.sql",
+        "006_ai_incident_copilot.sql",
     ]
     with db_connection.cursor() as cursor:
         cursor.execute(
@@ -24,6 +25,7 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
             """
         )
         assert [row[0] for row in cursor.fetchall()] == [
+            "ai_incident_analyses",
             "dataset_versions",
             "datasets",
             "drift_baselines",
