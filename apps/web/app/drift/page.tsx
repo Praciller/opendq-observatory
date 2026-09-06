@@ -1,44 +1,87 @@
 import Link from "next/link";
 
+import { Icon } from "../../components/icon";
+import { Metric } from "../../components/metric";
+import { PageHeader } from "../../components/page-header";
+import { Section } from "../../components/section";
+import { StatusBadge } from "../../components/status-badge";
 import { getDrift, type DriftResult } from "../../lib/drift";
 
 export const dynamic = "force-dynamic";
 
-function DriftPill({ status }: { status: DriftResult["status"] }) {
-  return <span className={`status-pill drift-${status.toLowerCase()}`}>{status}</span>;
+function groupResults(results: DriftResult[]): Array<{ datasetSlug: string; datasetName: string; results: DriftResult[] }> {
+  const groups = new Map<string, { datasetSlug: string; datasetName: string; results: DriftResult[] }>();
+  for (const result of results) {
+    const group = groups.get(result.datasetSlug) ?? { datasetSlug: result.datasetSlug, datasetName: result.datasetName, results: [] };
+    group.results.push(result);
+    groups.set(result.datasetSlug, group);
+  }
+  return [...groups.values()];
 }
 
-function metric(result: DriftResult): string {
-  return result.observedMetric === null ? "—" : result.observedMetric.toFixed(4);
+function metricText(value: number | null): string {
+  return value === null ? "Not available" : value.toFixed(4);
 }
 
 export default async function DriftPage() {
   const response = await getDrift();
+  const signals = response.results.filter((result) => ["DRIFT", "WARN", "ERROR"].includes(result.status)).length;
+  const stable = response.results.filter((result) => result.status === "STABLE").length;
+
   return (
-    <main className="shell">
-      <header className="hero quality-hero">
-        <p className="eyebrow">Phase 4 · Distribution Monitoring</p>
-        <h1>Drift detection</h1>
-        <p className="intro">Versioned baselines and interpretable distribution checks. Drift is statistical evidence, separate from data quality.</p>
-        <nav className="page-nav"><Link className="text-link" href="/">← System status</Link><Link className="text-link" href="/incidents">View incidents →</Link></nav>
-      </header>
+    <main className="shell" id="main-content">
+      <PageHeader
+        title="Drift signals"
+        description="Compare the latest persisted distribution checks with their versioned baselines. Drift is statistical evidence, separate from data quality."
+        actions={<div className="page-actions"><Link className="secondary-link" href="/incidents">Incidents</Link><Link className="secondary-link" href="/">Overview</Link></div>}
+        meta={<span className="page-meta">Latest check per dataset, feature, and method</span>}
+      />
+
+      <div className="summary-strip page-summary" aria-label="Drift summary">
+        <Metric label="Evaluated features" value={response.results.length} detail="Latest persisted checks" />
+        <Metric label="Needs review" value={signals} detail="Warn, drift, or error" tone={signals > 0 ? "danger" : "success"} />
+        <Metric label="Stable" value={stable} detail="Below warning boundary" tone="success" />
+      </div>
+
       {response.results.length === 0 ? (
-        <section className="panel empty-state"><strong>{response.message ?? "No drift results available."}</strong><span>Create a trusted baseline after enough legitimate observations exist.</span></section>
+        <Section title="No drift evaluation yet" description="A missing baseline or current sample is reported as missing evidence, not as a stable result.">
+          <div className="empty-state"><strong>{response.message ?? "No drift results are available."}</strong><span>Drift evidence will appear when a persisted evaluation has enough legitimate data.</span></div>
+        </Section>
       ) : (
-        <section className="panel">
-          <div className="section-heading"><div><p className="eyebrow">Persisted evidence</p><h2>Latest checks</h2></div><span className="count-label">{response.results.length} checks</span></div>
-          <div className="drift-list">
-            {response.results.map((result) => (
-              <article className="drift-row" key={`${result.datasetSlug}:${result.columnName}:${result.method}`}>
-                <div><strong>{result.datasetName}</strong><span className="muted">{result.columnName} · {result.method}</span></div>
-                <div className="drift-meta"><DriftPill status={result.status} /><span>Metric {metric(result)} / {result.threshold ?? "—"}</span><span>Baseline v{result.baselineVersion ?? "—"}</span><span>{result.currentSampleCount} current samples</span><time>{new Date(result.evaluatedAt).toLocaleString()}</time></div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <div className="section-stack">
+          {groupResults(response.results).map((group) => (
+            <Section
+              key={group.datasetSlug}
+              title={group.datasetName}
+              description={`${group.datasetSlug} · ${group.results.length} feature ${group.results.length === 1 ? "check" : "checks"}`}
+              action={<Link className="text-link" href={`/lineage/${group.datasetSlug}`}>View lineage <Icon name="arrow-right" size={15} /></Link>}
+            >
+              <div className="table-wrap">
+                <table className="data-table drift-table">
+                  <caption className="sr-only">Drift checks for {group.datasetName}</caption>
+                  <thead><tr><th scope="col">Status</th><th scope="col">Feature / method</th><th scope="col">Observed / threshold</th><th scope="col">Samples</th><th scope="col">Baseline</th><th scope="col">Evaluated</th></tr></thead>
+                  <tbody>
+                    {group.results.map((result) => (
+                      <tr key={`${result.datasetSlug}:${result.columnName}:${result.method}`}>
+                        <td data-label="Status"><StatusBadge status={result.status} /></td>
+                        <td data-label="Feature / method"><strong>{result.columnName}</strong><span className="table-secondary">{result.method} · {result.severity}</span></td>
+                        <td data-label="Observed / threshold"><code>{metricText(result.observedMetric)} / {metricText(result.threshold)}</code></td>
+                        <td data-label="Samples"><span className="table-secondary">Baseline {result.baselineSampleCount.toLocaleString()}</span><span>{result.currentSampleCount.toLocaleString()} current</span></td>
+                        <td data-label="Baseline">{result.baselineVersion === null ? "Not available" : `v${result.baselineVersion}`}</td>
+                        <td data-label="Evaluated"><time dateTime={result.evaluatedAt}>{new Date(result.evaluatedAt).toLocaleString()}</time></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Section>
+          ))}
+        </div>
       )}
-      <section className="panel"><div className="section-heading"><h2>Interpretation</h2><span className="count-label">Deterministic PSI</span></div><p className="muted">Stable is below the warning boundary; WARN is an early signal; DRIFT meets the configured threshold and can create a DATA_DRIFT incident. SKIPPED means there is not enough legitimate baseline or current data.</p></section>
-      <footer>Drift baselines are immutable and versioned. No fabricated trend data.</footer>
+
+      <Section title="How to read drift" description="The status is deterministic and uses the configured method and threshold.">
+        <p className="body-copy">Stable is below the warning boundary. WARN is an early signal. DRIFT meets the configured threshold and can create a DATA_DRIFT incident. SKIPPED means there is not enough legitimate baseline or current data.</p>
+      </Section>
     </main>
   );
 }
