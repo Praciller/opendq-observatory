@@ -43,11 +43,8 @@ class ProviderRouter:
             )
 
         attempts: list[ProviderAttempt] = []
-        for provider_name, provider, configured in (
-            ("groq", self.groq, bool(settings.groq_api_key)),
-            ("gemini", self.gemini, bool(settings.gemini_api_key)),
-        ):
-            if provider is None or not configured:
+        for provider_name, provider in (("groq", self.groq), ("gemini", self.gemini)):
+            if provider is None:
                 continue
             try:
                 result = provider.generate(value, max_output_tokens=settings.ai_max_output_tokens)
