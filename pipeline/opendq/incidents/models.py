@@ -8,6 +8,7 @@ from enum import StrEnum
 class IncidentKind(StrEnum):
     DATA_QUALITY = "DATA_QUALITY"
     EVALUATION_ERROR = "EVALUATION_ERROR"
+    DATA_DRIFT = "DATA_DRIFT"
 
 
 class IncidentStatus(StrEnum):

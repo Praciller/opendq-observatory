@@ -30,10 +30,10 @@ def _row_to_incident(row: tuple[Any, ...]) -> dict[str, Any]:
         "last_seen_at": row[12],
         "resolved_at": row[13],
         "acknowledged_at": row[14],
-        "first_evaluation_run_id": str(row[15]),
-        "latest_evaluation_run_id": str(row[16]),
-        "first_quality_result_id": int(row[17]),
-        "latest_quality_result_id": int(row[18]),
+        "first_evaluation_run_id": str(row[15]) if row[15] else None,
+        "latest_evaluation_run_id": str(row[16]) if row[16] else None,
+        "first_quality_result_id": int(row[17]) if row[17] else None,
+        "latest_quality_result_id": int(row[18]) if row[18] else None,
         "occurrence_count": int(row[19]),
         "summary": str(row[20]),
         "evidence": dict(row[21] or {}),
@@ -187,6 +187,150 @@ class IncidentRepository:
             )
             return str(active_id)
 
+    def open_or_observe_drift(
+        self,
+        result: Mapping[str, Any],
+        *,
+        rule_id: int,
+        summary: str,
+        impacts: Sequence[Mapping[str, Any]],
+    ) -> str:
+        now = result["evaluated_at"] or datetime.now(UTC)
+        incident_id = uuid4()
+        incident_key = f"{result['dataset_slug']}:drift:{result['column_name']}:{result['method']}"
+        evidence = {
+            "column_name": result["column_name"],
+            "method": result["method"],
+            "observed_metric": result["observed_metric"],
+            "threshold": result["threshold"],
+            "baseline_version": result["baseline_version"],
+            "baseline_sample_count": result["baseline_sample_count"],
+            "current_sample_count": result["current_sample_count"],
+            "details": result["details"],
+            "drift_result_id": result["drift_result_id"],
+        }
+        with self.connection.transaction():
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    INSERT INTO incidents(
+                        id, incident_key, incident_kind, dataset_id, rule_id, status, severity,
+                        opened_at, last_seen_at, first_evaluation_run_id, latest_evaluation_run_id,
+                        first_quality_result_id, latest_quality_result_id, summary, evidence_json,
+                        first_drift_evaluation_run_id, latest_drift_evaluation_run_id,
+                        first_drift_result_id, latest_drift_result_id
+                    ) VALUES (
+                        %s, %s, 'DATA_DRIFT', %s, %s, 'OPEN', %s,
+                        %s, %s, NULL, NULL, NULL, NULL, %s, %s, %s, %s, %s, %s
+                    )
+                    ON CONFLICT (dataset_id, rule_id)
+                        WHERE status IN ('OPEN', 'ACKNOWLEDGED') DO NOTHING
+                    RETURNING id
+                    """,
+                    (
+                        incident_id,
+                        incident_key,
+                        result["dataset_id"],
+                        rule_id,
+                        result["severity"],
+                        now,
+                        now,
+                        summary,
+                        Jsonb(evidence),
+                        result["evaluation_run_id"],
+                        result["evaluation_run_id"],
+                        result["drift_result_id"],
+                        result["drift_result_id"],
+                    ),
+                )
+                inserted = cursor.fetchone()
+            if inserted is not None:
+                self._insert_event(
+                    incident_id=str(inserted[0]),
+                    event_type=IncidentEventType.OPENED,
+                    result=None,
+                    drift_result=result,
+                    from_status=None,
+                    to_status=IncidentStatus.OPEN,
+                    message=summary,
+                    details={"impact_count": len(impacts)},
+                )
+                self._insert_impacts(str(inserted[0]), impacts, now)
+                return str(inserted[0])
+
+            active = self._active_for_update(int(result["dataset_id"]), rule_id)
+            if active is None:
+                raise RuntimeError("active drift incident disappeared after conflict")
+            active_id, active_status, _severity, occurrence_count = active
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE incidents
+                    SET last_seen_at = %s, latest_drift_evaluation_run_id = %s,
+                        latest_drift_result_id = %s,
+                        occurrence_count = %s, summary = %s, evidence_json = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (
+                        now,
+                        result["evaluation_run_id"],
+                        result["drift_result_id"],
+                        int(occurrence_count) + 1,
+                        summary,
+                        Jsonb(evidence),
+                        active_id,
+                    ),
+                )
+            self._insert_event(
+                incident_id=str(active_id),
+                event_type=IncidentEventType.OBSERVED_AGAIN,
+                result=None,
+                drift_result=result,
+                from_status=str(active_status),
+                to_status=str(active_status),
+                message=summary,
+                details={"impact_count": len(impacts)},
+            )
+            return str(active_id)
+
+    def resolve_drift_if_active(
+        self, result: Mapping[str, Any], *, rule_id: int, summary: str
+    ) -> str | None:
+        now = result["evaluated_at"] or datetime.now(UTC)
+        with self.connection.transaction():
+            active = self._active_for_update(int(result["dataset_id"]), rule_id)
+            if active is None:
+                return None
+            incident_id, from_status, severity, _occurrence_count = active
+            with self.connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    UPDATE incidents
+                    SET status = 'RESOLVED', resolved_at = %s,
+                        latest_drift_evaluation_run_id = %s,
+                        latest_drift_result_id = %s, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (
+                        now,
+                        result["evaluation_run_id"],
+                        result["drift_result_id"],
+                        incident_id,
+                    ),
+                )
+            self._insert_event(
+                incident_id=str(incident_id),
+                event_type=IncidentEventType.RESOLVED,
+                result=None,
+                drift_result=result,
+                from_status=str(from_status),
+                to_status=IncidentStatus.RESOLVED,
+                message=summary,
+                details={"recovered": True, "severity": severity},
+            )
+            return str(incident_id)
+
     def resolve_if_active(self, result: Mapping[str, Any], *, summary: str) -> str | None:
         now = result["evaluated_at"] or datetime.now(UTC)
         with self.connection.transaction():
@@ -222,6 +366,7 @@ class IncidentRepository:
         incident_id: str,
         event_type: IncidentEventType,
         result: Mapping[str, Any] | None,
+        drift_result: Mapping[str, Any] | None = None,
         from_status: str | None,
         to_status: IncidentStatus | str,
         message: str,
@@ -232,8 +377,9 @@ class IncidentRepository:
                 """
                 INSERT INTO incident_events(
                     incident_id, event_type, evaluation_run_id, quality_result_id,
-                    from_status, to_status, severity, message, details_json
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    from_status, to_status, severity, message, details_json,
+                    drift_evaluation_run_id, drift_result_id
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     incident_id,
@@ -245,6 +391,8 @@ class IncidentRepository:
                     result["severity"] if result else "INFO",
                     message,
                     Jsonb(dict(details)),
+                    drift_result["evaluation_run_id"] if drift_result else None,
+                    drift_result["drift_result_id"] if drift_result else None,
                 ),
             )
 

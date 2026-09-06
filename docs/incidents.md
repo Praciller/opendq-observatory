@@ -14,7 +14,7 @@ WARN       → no transition
 SKIPPED    → no transition, including no automatic recovery
 ```
 
-`FAIL` creates `DATA_QUALITY`; `ERROR` creates `EVALUATION_ERROR`. Severity is copied from the configured quality rule. Summaries and evidence are deterministic templates containing the persisted observed/expected values.
+`FAIL` creates `DATA_QUALITY`; `ERROR` creates `EVALUATION_ERROR`; `DRIFT` creates `DATA_DRIFT`. Stable drift resolves an active drift incident, while WARN and SKIPPED preserve state. Severity is copied from the configured rule or explicit drift registry. Summaries and evidence are deterministic templates containing persisted metrics, thresholds, and windows.
 
 ## Mutation boundary
 
@@ -24,4 +24,8 @@ The public application and all public API routes are read-only. A trusted operat
 
 An incident references its first/latest evaluation run and quality result. When first opened, the incident captures the current bounded downstream lineage traversal in `incident_impacts`. Repeated observations do not overwrite the initial snapshot, preserving historical explainability.
 
-The `/api/incidents` endpoint supports bounded status, dataset, and severity filters. `/api/incidents/<id>` exposes lifecycle events, deterministic evidence, and captured impact. `/incidents` and `/incidents/<id>` render the same persisted data.
+The `/api/incidents` endpoint supports bounded status, dataset, and severity filters. `/api/incidents/<id>` exposes lifecycle events, deterministic evidence, captured impact, and `/api/incidents/<id>/rca` exposes the latest persisted RCA. `/incidents` and `/incidents/<id>` render the same data.
+
+## Deterministic RCA
+
+When an incident opens or receives meaningful new evidence, the pipeline ranks controlled causes such as `UPSTREAM_SOURCE_FAILURE`, `SCHEMA_CHANGE`, `FRESHNESS_DELAY`, `TIMESTAMP_GAP`, `INVALID_VALUES`, `VOLUME_CHANGE`, `DISTRIBUTION_SHIFT`, `DATABASE_OR_PIPELINE_ERROR`, and `UNKNOWN`. Direct evidence has the highest weight; temporal/dataset alignment and upstream lineage context add bounded support. Scores and evidence IDs are persisted with `deterministic-rca-v1`. The result says “probable cause,” not “proven root cause.”

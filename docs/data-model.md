@@ -10,7 +10,7 @@ The initial migration creates five tables:
 
 Foreign keys and indexes support source-to-dataset lookup, recent run queries, and observation time queries. Unique constraints prevent duplicate source/dataset slugs, duplicate weather records for a dataset/location/timestamp, and duplicate USGS event IDs for a dataset. Upserts rely on these database constraints rather than application-only checks.
 
-The Phase 3 migration adds incident and lineage tables described below. Drift tables remain deferred.
+The Phase 3 migration adds incident and lineage tables described below. Phase 4 adds versioned drift and RCA evidence tables.
 
 ## Phase 2 quality tables
 
@@ -29,6 +29,16 @@ The score is denormalized on `quality_evaluation_runs` for efficient dashboard r
 - `lineage_nodes` stores stable provider-neutral source, dataset, process, API, and dashboard keys.
 - `lineage_edges` stores a small controlled edge vocabulary and rejects self-edges and exact duplicates.
 - `incident_impacts` stores the shortest downstream path captured when an incident is first opened. It is unique per incident/node and is not overwritten by repeated observations.
+
+## Phase 4 drift and RCA tables
+
+- `drift_baselines` stores immutable numeric/categorical/schema summaries, sample windows, and baseline versions. It never stores a full raw dataset.
+- `drift_evaluation_runs` stores the drift lifecycle, counts, and explicit `NO_BASELINE`/`PARTIAL` semantics.
+- `drift_results` stores one method/feature result with status, metric, threshold, sample counts, baseline version, windows, and explainable details.
+- `root_cause_analyses` stores the incident-linked top cause, confidence, algorithm version, deterministic fingerprint, summary, and candidate details.
+- `root_cause_evidence` stores each ranked supporting signal and its source reference. Historical RCA rows remain reproducible when the next evaluation changes.
+
+Drift incidents use the existing active dataset/rule uniqueness constraint with explicit drift rules and separate drift evaluation/result references; they are not converted into quality results.
 
 The graph seed is repeatable and idempotent. Traversal is a bounded breadth-first search with cycle protection and a maximum depth of ten. Public APIs and pages read these tables; only the trusted pipeline/CLI workflow mutates incident state.
 

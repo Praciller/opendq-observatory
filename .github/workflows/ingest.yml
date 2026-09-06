@@ -38,6 +38,6 @@ jobs:
       - name: Seed production lineage
         working-directory: pipeline
         run: uv run python -m opendq lineage seed
-      - name: Ingest sources, evaluate quality, and reconcile incidents
+      - name: Ingest sources, evaluate quality, drift, incidents, and RCA
         working-directory: pipeline
         run: uv run python -m opendq ingest all

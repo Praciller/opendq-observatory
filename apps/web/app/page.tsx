@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { getIncidents } from "../lib/incidents";
+import { getDrift, type DriftStatus } from "../lib/drift";
 import { getQualitySummaries, type QualityStatus } from "../lib/quality";
 import { buildHealthResponse, getSourceStatuses, type HealthResponse } from "../lib/status";
 
@@ -40,11 +41,16 @@ function QualityPill({ status }: { status: QualityStatus }) {
   return <span className={`status-pill quality-pill quality-${status.toLowerCase()}`}>{status}</span>;
 }
 
+function DriftPill({ status }: { status: DriftStatus }) {
+  return <span className={`status-pill drift-${status.toLowerCase()}`}>{status}</span>;
+}
+
 export default async function Home() {
   const health = await buildHealthResponse();
   const sources = await getSourceStatuses();
   const quality = await getQualitySummaries();
   const incidents = await getIncidents({ status: "open" });
+  const drift = await getDrift();
 
   return (
     <main className="shell">
@@ -129,7 +135,12 @@ export default async function Home() {
         {incidents.incidents.length === 0 ? <div className="empty-state"><strong>{incidents.message ?? "No incidents detected"}</strong><span>Quality evidence has not produced an active operational incident.</span></div> : <div className="incident-summary-list">{incidents.incidents.slice(0, 3).map((incident) => <Link className="incident-summary-row" href={`/incidents/${incident.id}`} key={incident.id}><span><strong>{incident.datasetName}</strong><small>{incident.ruleName}</small></span><span className={`status-pill incident-${incident.status.toLowerCase()}`}>{incident.severity}</span></Link>)}</div>}
       </section>
 
-      <section className="panel quick-links"><Link className="text-link" href="/quality">Data quality →</Link><Link className="text-link" href="/lineage">Lineage →</Link><Link className="text-link" href="/incidents">Incidents →</Link></section>
+      <section className="panel" aria-labelledby="drift-heading">
+        <div className="section-heading"><div><p className="eyebrow">Statistical behavior</p><h2 id="drift-heading">Drift</h2></div><Link className="text-link" href="/drift">View details</Link></div>
+        {drift.results.length === 0 ? <div className="empty-state"><strong>{drift.message ?? "No drift evaluation recorded"}</strong><span>Insufficient baseline data is shown honestly.</span></div> : <div className="drift-summary-list">{drift.results.filter((result) => result.status !== "STABLE").slice(0, 4).map((result) => <div className="drift-summary-row" key={`${result.datasetSlug}:${result.columnName}:${result.method}`}><span><strong>{result.datasetName}</strong><small>{result.columnName} · {result.method}</small></span><DriftPill status={result.status} /></div>)}{drift.results.every((result) => result.status === "STABLE") && <div className="empty-state"><strong>All evaluated features are stable</strong><span>{drift.results.length} persisted checks are below their configured thresholds.</span></div>}</div>}
+      </section>
+
+      <section className="panel quick-links"><Link className="text-link" href="/quality">Data quality →</Link><Link className="text-link" href="/drift">Drift →</Link><Link className="text-link" href="/lineage">Lineage →</Link><Link className="text-link" href="/incidents">Incidents →</Link></section>
 
       <footer>Phase 3 · Deterministic quality, incidents, and lineage · No fabricated operational metrics</footer>
     </main>

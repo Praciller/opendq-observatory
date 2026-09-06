@@ -1,6 +1,6 @@
 # OpenDQ Observatory
 
-Open-source data reliability, drift detection, lineage, and AI-assisted incident intelligence platform.
+Open-source data reliability, drift detection, lineage, and deterministic incident intelligence platform.
 
 OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engineering, Data Quality, Data Observability, Data Contracts, Lineage, and MLOps roles. It uses only public data and keeps the first release deterministic and free-tier aware.
 
@@ -12,7 +12,9 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 
 **Phase 2:** The deterministic Data Quality Engine is frozen at `v0.2.0`.
 
-**Phase 3:** Deterministic incident detection, lineage, and blast-radius evidence are implemented on `main`.
+**Phase 3:** Deterministic incident detection, lineage, and blast-radius evidence are frozen at `v0.3.0`.
+
+**Phase 4:** Versioned drift baselines, distribution/schema checks, drift incidents, and deterministic root-cause evidence are implemented on the Phase 4 branch.
 
 ### Hosted demo
 
@@ -21,6 +23,7 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 - `/api/sources` reports both Open-Meteo and USGS Earthquakes as enabled with successful ingestion metadata.
 - `/api/quality`, `/api/quality/sources`, and `/quality` expose persisted production rule results; the current real datasets report quality scores of 100.0 with volume checks explicitly skipped until five baseline runs exist.
 - `/api/incidents`, `/api/lineage`, `/incidents`, and `/lineage` expose read-only incident lifecycle and lineage evidence from Neon.
+- `/api/drift`, `/drift`, and incident detail RCA sections expose persisted drift metrics and deterministic evidence ranking.
 - GitHub Actions has a production `DATABASE_URL` secret and a scheduled ingestion workflow; the verified workflow is idempotent and reports `NO_CHANGE` when no new logical records are available.
 - The deployed resource currently has Neon Auth provisioned by the marketplace integration, although this application does not use authentication. Disabling that extra service requires owner email verification in the provider UI and remains an explicit follow-up.
 - The Vercel project is not connected to GitHub automatic deployments; production deployment is currently owner-triggered.
@@ -35,12 +38,14 @@ OpenDQ Observatory is a public portfolio project for AI Engineering, Data Engine
 - Deterministic quality rules for freshness, completeness, uniqueness, validity/range, timestamp continuity, and volume baselines, with persisted explainable results and transparent scores.
 - Deterministic incident lifecycle with database-enforced active deduplication, event history, automatic recovery, and trusted CLI acknowledgement.
 - Idempotent provider-neutral lineage seed, bounded downstream traversal, and incident blast-radius snapshots.
-- Next.js App Router status, quality, incident, and lineage pages with database-aware APIs.
+- Versioned drift baselines, bounded PSI/location checks, schema comparison, explicit insufficient-baseline states, and drift incident reconciliation.
+- Deterministic RCA taxonomy, weighted ranking, confidence categories, evidence chains, algorithm versioning, and duplicate-analysis fingerprints.
+- Next.js App Router status, quality, drift, incident/RCA, and lineage pages with database-aware read-only APIs.
 - Next.js quality API/detail page, Docker Compose PostgreSQL, deterministic tests, GitHub Actions CI, and six-hour ingestion-plus-quality workflow.
 
 ### Planned
 
-Drift detection, deterministic root-cause evidence, optional AI explanations, and streaming remain later-phase work. Kafka/Redpanda, authentication, notifications, billing, and multi-tenancy are also deferred.
+Optional AI explanations, streaming, Kafka/Redpanda, authentication, notifications, billing, and multi-tenancy remain deferred.
 
 ## Architecture
 
@@ -49,9 +54,11 @@ Open-Meteo / USGS → fetch → parse → normalize → Pydantic contract
                                       ↓
                               PostgreSQL + run record
                                       ↓
-                         quality evaluation + incidents
+                         quality evaluation + drift evaluation
                                       ↓
-                         lineage-aware read-only APIs/UI
+                         incidents + lineage + deterministic RCA
+                                      ↓
+                         read-only APIs/UI
 ```
 
 Production uses Vercel Hobby for the web app, a Vercel-managed Neon PostgreSQL Free resource for storage, and GitHub Actions for scheduled micro-batches. Local development uses Docker Compose PostgreSQL. Cloudflare is not part of this project.
@@ -77,6 +84,9 @@ pipeline/.venv/Scripts/python.exe -m opendq ingest open-meteo
 pipeline/.venv/Scripts/python.exe -m opendq ingest usgs
 pipeline/.venv/Scripts/python.exe -m opendq ingest all
 pipeline/.venv/Scripts/python.exe -m opendq lineage seed
+pipeline/.venv/Scripts/python.exe -m opendq drift baseline create open-meteo
+pipeline/.venv/Scripts/python.exe -m opendq drift evaluate all
+pipeline/.venv/Scripts/python.exe -m opendq rca show <incident-id>
 ```
 
 Repeated ingestion is safe: weather uses dataset/location/timestamp uniqueness and USGS uses the canonical event ID. A repeat with no new logical records is reported as `NO_CHANGE` and exits successfully.
@@ -92,7 +102,7 @@ pipeline/.venv/Scripts/python.exe -m opendq lineage show open-meteo
 pipeline/.venv/Scripts/python.exe -m opendq lineage impact open-meteo
 ```
 
-The public app is read-only for incident state. A trusted operator CLI may acknowledge an OPEN incident; quality PASS results resolve OPEN or ACKNOWLEDGED incidents automatically. See [incident semantics](docs/incidents.md) and [lineage](docs/lineage.md).
+The public app is read-only for incident state, baselines, and RCA. A trusted operator CLI may acknowledge an OPEN incident; quality PASS and stable drift results resolve active incidents automatically. See [incident semantics](docs/incidents.md), [drift](docs/drift.md), and [root-cause analysis](docs/root-cause-analysis.md).
 
 ## Web app
 
@@ -127,6 +137,8 @@ CI uses disposable PostgreSQL and deterministic fixtures. It does not call publi
 - [Data model](docs/data-model.md)
 - [Ingestion](docs/ingestion.md)
 - [Data quality roadmap](docs/data-quality.md)
+- [Drift detection](docs/drift.md)
+- [Deterministic root-cause analysis](docs/root-cause-analysis.md)
 - [Deployment](docs/deployment.md)
 - [Architecture decisions](docs/decisions/)
 
