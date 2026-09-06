@@ -266,7 +266,10 @@ class IncidentRepository:
                 cursor.execute(
                     """
                     UPDATE incidents
-                    SET last_seen_at = %s, latest_drift_evaluation_run_id = %s,
+                    SET incident_kind = 'DATA_DRIFT',
+                        first_evaluation_run_id = NULL, latest_evaluation_run_id = NULL,
+                        first_quality_result_id = NULL, latest_quality_result_id = NULL,
+                        last_seen_at = %s, latest_drift_evaluation_run_id = %s,
                         latest_drift_result_id = %s,
                         occurrence_count = %s, summary = %s, evidence_json = %s,
                         updated_at = CURRENT_TIMESTAMP

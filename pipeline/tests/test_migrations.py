@@ -14,6 +14,7 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
         "002_quality_engine.sql",
         "003_incidents_lineage.sql",
         "004_drift_rca.sql",
+        "005_reclassify_drift_incidents.sql",
     ]
     with db_connection.cursor() as cursor:
         cursor.execute(

@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
+from opendq.drift.config import feature_for
 from opendq.drift.repository import DriftRepository
 from opendq.drift.service import create_baselines, evaluate_dataset
 from opendq.incidents.repository import IncidentRepository
@@ -81,6 +82,18 @@ def test_baseline_versioning_is_immutable_and_numeric_drift_opens_rca(repository
     assert analysis is not None
     assert analysis["top_cause"] == "DISTRIBUTION_SHIFT"
     assert analysis["algorithm_version"] == "deterministic-rca-v1"
+
+
+def test_drift_rules_are_not_evaluated_as_quality_rules(repository) -> None:
+    _, dataset_id = _seed_weather(repository)
+    repository.ensure_default_quality_rules(dataset_id, "hourly-weather")
+    drift = DriftRepository(repository.connection)
+    drift.ensure_drift_rule(dataset_id, feature_for("hourly-weather", "temperature_c", "PSI"))
+
+    rules = repository.quality_rules(dataset_id)
+
+    assert rules
+    assert all(rule.dimension != "drift" for rule in rules)
 
 
 def test_stable_latest_window_resolves_drift_incident(repository) -> None:
