@@ -93,7 +93,7 @@
 - [x] Deploy the exact merged checkout to the existing canonical Vercel project only; verify READY, canonical alias, health, sources, quality, drift, incidents, lineage, RCA, AI, and reliability endpoints.
 - [x] Run one final controlled `workflow_dispatch` from the verified v1 merge SHA and record the run ID/SHA and bounded AI behavior.
 - [x] Capture final production browser screenshots and verify desktop/mobile routes.
-- [ ] If all mandatory gates pass, create annotated tag `v1.0.0` on the exact verified merge SHA and a concise GitHub Release. If a mandatory owner-only action blocks this, record `BLOCKED`/`COMPLETE_WITH_LIMITATIONS` with the exact blocker and stop.
+- [x] If all mandatory gates pass, create annotated tag `v1.0.0` on the exact verified release commit and a concise GitHub Release. If a mandatory owner-only action blocks this, record `BLOCKED`/`COMPLETE_WITH_LIMITATIONS` with the exact blocker and stop.
 - [ ] Do not begin v1.1 feature work after the release decision.
 
 ## Verification matrix
