@@ -7,7 +7,8 @@
     "build": "next build",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "verify:production-ui": "tsx scripts/verify-production-ui.ts"
   },
   "dependencies": {
     "next": "16.3.4",
