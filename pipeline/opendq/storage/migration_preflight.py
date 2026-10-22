@@ -86,9 +86,7 @@ def inspect_migrations(
         state: PreflightState = "BLOCKED"
     elif not has_checksum:
         state = "LEGACY_REVIEW_REQUIRED"
-        notes.append(
-            "Legacy ledger has no checksums: this cannot verify historical executed SQL."
-        )
+        notes.append("Legacy ledger has no checksums: this cannot verify historical executed SQL.")
     elif pending:
         state = "PENDING_REVIEW"
         notes.append("Unapplied migrations require a separate release and database review.")

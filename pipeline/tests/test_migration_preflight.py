@@ -28,9 +28,10 @@ def test_preflight_requires_review_for_legacy_database(repository) -> None:
 
 def test_preflight_blocks_unknown_applied_version(repository) -> None:
     with repository.connection.cursor() as cursor:
-        cursor.execute("INSERT INTO schema_migrations(version, checksum) VALUES (%s, %s)", (
-            "007_phase7_future.sql", hashlib.sha256(b"-- future").hexdigest()
-        ))
+        cursor.execute(
+            "INSERT INTO schema_migrations(version, checksum) VALUES (%s, %s)",
+            ("007_phase7_future.sql", hashlib.sha256(b"-- future").hexdigest()),
+        )
     repository.connection.commit()
 
     result = inspect_migrations(repository.connection)
@@ -40,9 +41,10 @@ def test_preflight_blocks_unknown_applied_version(repository) -> None:
 
 def test_preflight_blocks_tampered_checksum(repository) -> None:
     with repository.connection.cursor() as cursor:
-        cursor.execute("UPDATE schema_migrations SET checksum = %s WHERE version = %s", (
-            "mismatched", "006_ai_incident_copilot.sql"
-        ))
+        cursor.execute(
+            "UPDATE schema_migrations SET checksum = %s WHERE version = %s",
+            ("mismatched", "006_ai_incident_copilot.sql"),
+        )
     repository.connection.commit()
 
     result = inspect_migrations(repository.connection)
