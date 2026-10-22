@@ -2,7 +2,6 @@ import hashlib
 
 import psycopg
 import pytest
-
 from opendq.storage.migrations import (
     MigrationDriftError,
     _default_migrations_dir,
