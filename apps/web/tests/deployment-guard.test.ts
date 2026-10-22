@@ -105,6 +105,9 @@ test("repository exposes a manual post-deploy production UI verification workflo
     assert.fail(`post-deploy verification workflow must exist: ${String(error)}`);
   }
   assert.match(workflow, /workflow_dispatch:/);
+  assert.ok(workflow.includes("BASE_URL: ${{ inputs.base_url }}"));
+  assert.ok(workflow.includes('run: npm run verify:production-ui -- "$BASE_URL"'));
+  assert.equal(workflow.includes("run: npm run verify:production-ui -- \"${{ inputs.base_url }}\""), false);
   assert.match(workflow, /npm run verify:production-ui/);
   assert.match(workflow, /working-directory:\s*apps\/web/);
 });

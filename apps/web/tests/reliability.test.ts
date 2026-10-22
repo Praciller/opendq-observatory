@@ -11,9 +11,9 @@ test("reliability maps measured execution evidence without turning data outcomes
   const summary = mapReliabilityRow({
     window_start: new Date("2026-09-01T00:00:00Z"),
     window_end: new Date("2026-09-06T00:00:00Z"),
-    pipeline_runs: 10,
-    pipeline_successes: 9,
-    pipeline_failures: 1,
+    pipeline_runs: "10",
+    pipeline_successes: "9",
+    pipeline_failures: "1",
     latest_pipeline_run_at: new Date("2026-09-06T00:00:00Z"),
     latest_successful_ingestion_at: new Date("2026-09-06T00:00:00Z"),
     quality_runs: 10,
@@ -44,17 +44,17 @@ test("reliability reports insufficient history instead of inventing an SLO perce
   const summary = mapReliabilityRow({
     window_start: null,
     window_end: null,
-    pipeline_runs: 0,
-    pipeline_successes: 0,
-    pipeline_failures: 0,
+    pipeline_runs: "0",
+    pipeline_successes: "0",
+    pipeline_failures: "0",
     latest_pipeline_run_at: null,
     latest_successful_ingestion_at: null,
-    quality_runs: 0,
+    quality_runs: "0",
     quality_successes: 0,
     quality_failures: 0,
     latest_quality_status: null,
     latest_quality_run_at: null,
-    drift_runs: 0,
+    drift_runs: "0",
     drift_successes: 0,
     drift_failures: 0,
     latest_drift_status: null,
@@ -68,6 +68,17 @@ test("reliability reports insufficient history instead of inventing an SLO perce
   assert.equal(summary.execution.pipeline.successRate, null);
   assert.equal(summary.state.quality, "UNAVAILABLE");
   assert.equal(summary.state.drift, "UNAVAILABLE");
+  const numericZero: ReliabilityRow = {
+    window_start: null, window_end: null,
+    pipeline_runs: 0, pipeline_successes: 0, pipeline_failures: 0,
+    latest_pipeline_run_at: null, latest_successful_ingestion_at: null,
+    quality_runs: 0, quality_successes: 0, quality_failures: 0,
+    latest_quality_status: null, latest_quality_run_at: null,
+    drift_runs: 0, drift_successes: 0, drift_failures: 0,
+    latest_drift_status: null, latest_drift_run_at: null,
+    open_incidents: 0, acknowledged_incidents: 0, resolved_incidents: 0,
+  };
+  assert.equal(mapReliabilityRow(numericZero).window.state, "INSUFFICIENT_HISTORY");
 });
 
 test("reliability has an honest unavailable state", () => {
