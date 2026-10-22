@@ -35,3 +35,33 @@ The ledger enhancement is performed by the trusted migration runner.
 Future schema migrations should only be **added**, never edited after application.
 Do not suppress checksum mismatch errors or overwrite production checksums to make
 a failing migration pass. Use a new additive SQL migration to change a schema.
+
+## Required read-only preflight
+
+Before enabling this migration runner against an existing database, execute the
+inspector **without performing any migration**:
+
+```sh
+cd pipeline
+# Ensure DATABASE_URL targets the intended database; never print the secret.
+uv run python scripts/migration_preflight.py
+```
+
+The CLI starts a PostgreSQL transaction with `SET TRANSACTION READ ONLY`,
+executes SELECT queries only, and returns redacted JSON metadata (migration
+filenames, drift and ledger state, no DSN, credentials or row-level data).
+
+Preflight states:
+
+- `VERIFIED`: existing SHA-256 ledger matches current SQL files.
+- `LEGACY_REVIEW_REQUIRED`: ledger predates checksums. Historical SQL cannot
+  be proven from the current files. Independent schema review is mandatory.
+- `PENDING_REVIEW`: new unapplied SQL files exist; they require a separate release.
+- `BLOCKED`: unexpected applied versions (including an existing Phase 7 `007`
+  absent in this checkout), checksum mismatch, missing ledger, or missing SQL files.
+
+The CLI returns a nonzero exit code unless the ledger is already `VERIFIED`.
+This does **not** authorize applying changes; operator approval and a recovery
+plan are separate gates. The connected Neon project must be positively
+identified as OpenDQ Production before executing the query. Do not substitute
+another accessible Neon project or pass production secrets into logs.
