@@ -127,9 +127,7 @@ def test_schema_migration_checksum_ledger_is_populated(repository) -> None:
         rows = cursor.fetchall()
     paths = sorted(_default_migrations_dir().glob("*.sql"))
     assert len(rows) == len(paths)
-    assert rows == [
-        (path.name, hashlib.sha256(path.read_bytes()).hexdigest()) for path in paths
-    ]
+    assert rows == [(path.name, hashlib.sha256(path.read_bytes()).hexdigest()) for path in paths]
     assert apply_migrations(repository.connection) == []
 
 
@@ -184,9 +182,7 @@ def test_migration_failure_rolls_back_all_new_sql(repository, tmp_path) -> None:
     (tmp_path / "998_test_create.sql").write_text(
         "CREATE TABLE migration_rollback_probe (id integer);\n", encoding="utf-8"
     )
-    (tmp_path / "999_test_failure.sql").write_text(
-        "SELECT 1 / 0;\n", encoding="utf-8"
-    )
+    (tmp_path / "999_test_failure.sql").write_text("SELECT 1 / 0;\n", encoding="utf-8")
 
     with pytest.raises(psycopg.errors.DivisionByZero):
         apply_migrations(repository.connection, tmp_path)
