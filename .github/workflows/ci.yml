@@ -1,8 +1,16 @@
 name: CI
 
+# Run once for each PR, and on the protected default branch after merge.
+# Avoid the duplicate push + pull_request executions on feature branches.
 on:
   push:
+    branches:
+      - main
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
