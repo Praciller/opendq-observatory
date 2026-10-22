@@ -27,4 +27,6 @@ jobs:
       - name: Install web dependencies
         run: npm ci
       - name: Verify deployed UI contract
-        run: npm run verify:production-ui -- "${{ inputs.base_url }}"
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: npm run verify:production-ui -- "$BASE_URL"
