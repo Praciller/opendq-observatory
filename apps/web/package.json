@@ -11,7 +11,7 @@
     "verify:production-ui": "tsx scripts/verify-production-ui.ts"
   },
   "dependencies": {
-    "next": "16.3.4",
+    "next": "16.4.2",
     "postgres": "3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8"

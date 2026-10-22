@@ -84,17 +84,3 @@ jobs:
         run: npm ci
       - name: Audit runtime dependencies (high/critical)
         run: npm audit --omit=dev --audit-level=high
-
-      # Temporary read-only remediation preview: generate lockfile content for review.
-      - name: Prepare security lockfile remediation preview
-        if: failure()
-        run: |
-          npm install next@16.4.2 --save-exact
-          npm audit fix --omit=dev || true
-          npm audit --omit=dev --audit-level=high
-          echo 'BEGIN_PACKAGE'
-          base64 -w0 package.json | fold -w 4000 | sed 's/^/PACKAGE_CHUNK=/'
-          echo 'END_PACKAGE'
-          echo 'BEGIN_LOCK'
-          base64 -w0 package-lock.json | fold -w 4000 | sed 's/^/LOCK_CHUNK=/'
-          echo 'END_LOCK'
