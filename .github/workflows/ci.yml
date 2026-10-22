@@ -67,3 +67,20 @@ jobs:
         run: npm run typecheck
       - name: Web build
         run: npm run build
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked web dependencies
+        run: npm ci
+      - name: Audit runtime dependencies (high/critical)
+        run: npm audit --omit=dev --audit-level=high
