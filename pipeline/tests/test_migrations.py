@@ -121,6 +121,7 @@ def test_drift_and_rca_indexes_are_present(repository) -> None:
     assert "drift_results_dataset_evaluated_idx" in indexes
     assert "root_cause_analyses_incident_created_idx" in indexes
 
+
 def test_schema_migration_checksum_ledger_is_populated(repository) -> None:
     with repository.connection.cursor() as cursor:
         cursor.execute("SELECT version, checksum FROM schema_migrations ORDER BY version")
