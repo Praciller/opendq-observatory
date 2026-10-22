@@ -8,7 +8,9 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "verify:production-ui": "tsx scripts/verify-production-ui.ts"
+    "verify:production-ui": "tsx scripts/verify-production-ui.ts",
+    "start": "next start",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "next": "16.4.2",
@@ -17,6 +19,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.1.18",
     "@types/node": "22.19.5",
     "@types/react": "19.2.7",
