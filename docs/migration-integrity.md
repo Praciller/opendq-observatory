@@ -54,6 +54,86 @@ Future schema migrations should only be **added**, never edited after applicatio
 Do not suppress checksum mismatch errors or overwrite production checksums to make
 a failing migration pass. Use a new additive SQL migration to change a schema.
 
+## Production deployment gate (evidence as of 2026-10-24)
+
+This section is an **operator checklist**, not authorization for production
+commands. Revalidate every item immediately before the release; the database
+and scheduled jobs may have changed since these observations.
+
+### Verified without modifying production
+
+- Vercel's production `NEON_PROJECT_ID` for `opendq-observatory` matched
+  the Neon Console project `neon-green-pebble` (ID
+  `restless-lake-84436685`). The observed branch was `main`, database
+  `neondb`, schema `public`. This does **not** independently verify the
+  GitHub Actions `DATABASE_URL` secret targets that same database.
+- The Neon Tables viewer showed all **20** distinct tables created by the
+  repository's `001`–`006` SQL migrations. This is a **table-name-only**
+  comparison, not a full column/index/constraint or historic SQL audit.
+- `public.schema_migrations` contained exactly the six migration filenames
+  `001_initial.sql` through `006_ai_incident_copilot.sql`. The ledger had
+  `version` and `applied_at`, but **no `checksum`**; no `007` was recorded.
+  Therefore this is a **legacy ledger**. The read-only preflight CLI has not
+  been executed against production; do not assert its result is `VERIFIED`.
+- The Neon recovery UI showed **six hours** of point-in-time history,
+  **no snapshots** and **no snapshot schedule**. No backup restore test was
+  performed. This does not meet the recovery-evidence gate below.
+- PR CI proves clean disposable PostgreSQL behavior only. The reviewed
+  migration runner is not currently deployed to production.
+
+### Release blockers that must all be resolved
+
+1. **Historical provenance.** Independently compare actual production
+   columns, types, nullability, primary/foreign keys, indexes, constraints and
+   applied migration history with each of the six committed SQL files.
+   Compare to trustworthy earlier deployment or backup records where
+   available; matching table names or current SQL hashes are not proof that
+   the same bytes ran historically. Stop on any unexplained difference.
+2. **Source identity and Phase 7.** Verify the GitHub scheduled ingestion
+   database target out of band without printing its secret. Recheck ledger
+   versions just before the window. Ensure Phase 7 has not already applied
+   `007` or modified the schema and that no pending SQL files exist in the
+   **exact** candidate SHA.
+3. **Recovery.** Establish a durable, independently verified restoration
+   point and document its scope, retention, owner, and a restore drill that
+   does not overwrite production. A six-hour PITR window alone is not
+   adequate evidence of recoverability. Creating snapshots or changing
+   backup settings requires separate authorization and plan/availability
+   checks. Never assume a paid Neon feature is free.
+4. **Coordination.** Obtain explicit owner approval for a maintenance window.
+   Stop new scheduled ingestion launches and wait for all active runs to
+   finish. Do not disable workflows or change repository settings as an
+   unapproved workaround.
+5. **Adoption.** From a secured, approved runner pinned to the reviewed PR
+   SHA and intended database, first perform the read-only preflight. A
+   legacy result is expected until adoption. Only after conditions 1–4 are
+   verified, with separate owner approval, use
+   `uv run python -m opendq migrate --adopt-legacy-checksums`. This is a
+   **write to the production migration ledger**. Do not run it from an
+   unreviewed workflow, or submit its credentials in logs/chat.
+6. **Post-adoption verification.** Require the independent read-only
+   preflight to return `VERIFIED`; confirm that all six applied rows have
+   non-null matching checksums and there are no unexpected/pending versions.
+   Verify normal `migrate` is idempotent, then separately authorize the
+   merge/deploy, resume ingestion and monitor job success, source freshness,
+   application health and error logs. Keep a named rollback decision-maker
+   and escalation path.
+
+### Explicit stop conditions
+
+Stop without merge, deployment, or automatic backfill if: the production
+project or scheduled-job target cannot be verified; schema differs without
+an accepted explanation; a Phase 7 or unknown migration appears; a new SQL
+file is pending; the preflight reports `BLOCKED`; the backup cannot be
+restored; scheduled ingestion is still running; or owner approval is absent.
+Do **not** "fix" the result by deleting ledger rows, rewriting SQL history,
+overwriting hashes, forcing GitHub CI, or changing production credentials.
+
+If anything fails **after adoption**, freeze further migrations and
+ingestion, capture non-secret diagnostics, and follow the approved recovery
+plan. Avoid trying to reverse a checksum ledger change by deleting the
+column or changing hashes without a separate database recovery assessment.
+
 ## Required read-only preflight
 
 Before enabling this migration runner against an existing database, execute the
