@@ -270,3 +270,87 @@ def test_concurrent_fresh_database_migration_runners_are_serialized(db_connectio
             "FROM public.schema_migrations"
         )
         assert cursor.fetchone() == (6, 6, 6)
+
+
+def test_no_schema_change_accepts_complete_legacy_ledger_without_writing(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")
+        before = cursor.fetchall()
+    assert len(before) == 6
+
+    assert apply_migrations(repository.connection, no_schema_change=True) == []
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")
+        assert cursor.fetchall() == before
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
+        assert cursor.fetchone()[0] == 0
+
+
+def test_no_schema_change_rejects_pending_sql_on_legacy_ledger(repository, tmp_path) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    (tmp_path / "007_future.sql").write_text(
+        "CREATE TABLE must_not_be_created (id integer);", encoding="utf-8"
+    )
+    with pytest.raises(MigrationDriftError, match="forbids unapplied SQL"):
+        apply_migrations(repository.connection, tmp_path, no_schema_change=True)
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.must_not_be_created')")
+        assert cursor.fetchone()[0] is None
+
+
+def test_no_schema_change_rejects_fresh_database(db_connection) -> None:
+    with db_connection.cursor() as cursor:
+        cursor.execute("DROP SCHEMA public CASCADE")
+        cursor.execute("CREATE SCHEMA public")
+    db_connection.commit()
+
+    with pytest.raises(MigrationDriftError, match="forbids unapplied SQL"):
+        apply_migrations(db_connection, no_schema_change=True)
+    with db_connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.schema_migrations')")
+        assert cursor.fetchone()[0] is None
+
+
+def test_no_schema_change_does_not_bypass_checksum_drift(repository, tmp_path) -> None:
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    changed = tmp_path / "006_ai_incident_copilot.sql"
+    changed.write_text(
+        changed.read_text(encoding="utf-8") + "\n-- unsafe drift\n", encoding="utf-8"
+    )
+    with pytest.raises(MigrationDriftError, match="checksum mismatch"):
+        apply_migrations(repository.connection, tmp_path, no_schema_change=True)
+
+
+def test_no_schema_change_rejects_unknown_applied_version(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO schema_migrations(version, checksum) VALUES (%s, %s)",
+            ("007_unexpected.sql", "not_a_valid_hash"),
+        )
+    repository.connection.commit()
+    with pytest.raises(MigrationDriftError, match="are missing"):
+        apply_migrations(repository.connection, no_schema_change=True)
+
+
+def test_no_schema_change_rejects_checksum_adoption_combo(repository) -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        apply_migrations(
+            repository.connection,
+            no_schema_change=True,
+            allow_legacy_checksum_baseline=True,
+        )

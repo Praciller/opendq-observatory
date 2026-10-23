@@ -40,7 +40,7 @@ jobs:
         run: python -m pip install "uv==0.12.7" && uv sync --locked
       - name: Apply migrations
         working-directory: pipeline
-        run: uv run python -m opendq migrate
+        run: uv run python -m opendq migrate --no-schema-change
       - name: Seed production lineage
         working-directory: pipeline
         run: uv run python -m opendq lineage seed

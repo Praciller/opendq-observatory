@@ -45,10 +45,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="opendq")
     commands = parser.add_subparsers(dest="command", required=True)
     migrate = commands.add_parser("migrate", help="apply pending SQL migrations")
-    migrate.add_argument(
+    migration_mode = migrate.add_mutually_exclusive_group()
+    migration_mode.add_argument(
         "--adopt-legacy-checksums",
         action="store_true",
         help="explicitly baseline a reviewed legacy ledger, with no pending SQL migrations",
+    )
+    migration_mode.add_argument(
+        "--no-schema-change",
+        action="store_true",
+        help="verify known migrations without applying SQL or modifying the ledger",
     )
     ingest = commands.add_parser("ingest", help="ingest one or all public sources")
     ingest.add_argument("source", choices=("open-meteo", "usgs", "all"))
@@ -342,6 +348,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 applied = apply_migrations(
                     connection,
                     allow_legacy_checksum_baseline=args.adopt_legacy_checksums,
+                    no_schema_change=args.no_schema_change,
                 )
             print(json.dumps({"applied": applied}))
             return 0

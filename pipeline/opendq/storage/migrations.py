@@ -25,6 +25,7 @@ def apply_migrations(
     migrations_dir: Path | None = None,
     *,
     allow_legacy_checksum_baseline: bool = False,
+    no_schema_change: bool = False,
 ) -> list[str]:
     """Apply pending SQL atomically; reject changed or missing applied migrations.
 
@@ -32,6 +33,9 @@ def apply_migrations(
     provenance must first be independently reviewed. Legacy adoption requires
     an explicit one-time operator opt-in with no other pending SQL migrations.
     """
+    if allow_legacy_checksum_baseline and no_schema_change:
+        raise ValueError("Checksum adoption and no-schema-change mode are mutually exclusive")
+
     directory = migrations_dir or _default_migrations_dir()
     files = sorted(directory.glob("*.sql"))
     if not files:
@@ -87,6 +91,17 @@ def apply_migrations(
                 expected = sql_files[version][1]
                 if has_checksum and digest != expected:
                     raise MigrationDriftError(f"Migration checksum mismatch: {version}")
+
+            if no_schema_change:
+                pending = sorted(set(sql_files) - set(applied))
+                if not has_table or pending:
+                    raise MigrationDriftError(
+                        "No-schema-change mode forbids unapplied SQL migrations: "
+                        + ", ".join(pending)
+                    )
+                # All known versions are applied. The caller must not modify the
+                # schema even when the ledger predates checksum verification.
+                return []
 
             if has_table and not has_checksum:
                 # Never silently adopt legacy checksums from scheduled ingestion.
