@@ -3,7 +3,6 @@
 import hashlib
 
 import psycopg
-
 from opendq.storage.migration_preflight import inspect_migrations
 from opendq.storage.migrations import _default_migrations_dir
 
