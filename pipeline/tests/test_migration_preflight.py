@@ -2,7 +2,6 @@
 
 import hashlib
 
-import psycopg
 from opendq.storage.migration_preflight import inspect_migrations
 from opendq.storage.migrations import _default_migrations_dir
 
@@ -84,11 +83,12 @@ def test_missing_ledger_blocks_inspection(db_connection) -> None:
 
 
 def test_inspector_works_in_postgres_read_only_transaction(repository) -> None:
-    with psycopg.connect(repository.connection.info.dsn, autocommit=True) as connection:
-        with connection.transaction():
-            connection.execute("SET TRANSACTION READ ONLY")
-            report = inspect_migrations(connection)
-            assert report.state == "LEGACY_REVIEW_REQUIRED"
-            with connection.cursor() as cursor:
-                cursor.execute("SHOW transaction_read_only")
-                assert cursor.fetchone()[0] == "on"
+    connection = repository.connection
+    connection.commit()
+    with connection.transaction():
+        connection.execute("SET TRANSACTION READ ONLY")
+        report = inspect_migrations(connection)
+        assert report.state == "LEGACY_REVIEW_REQUIRED"
+        with connection.cursor() as cursor:
+            cursor.execute("SHOW transaction_read_only")
+            assert cursor.fetchone()[0] == "on"
