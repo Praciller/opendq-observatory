@@ -1,4 +1,7 @@
 import hashlib
+import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 
 import psycopg
 import pytest
@@ -237,3 +240,33 @@ def test_migration_failure_rolls_back_all_new_sql(repository, tmp_path) -> None:
         assert cursor.fetchone()[0] is None
         cursor.execute("SELECT count(*) FROM schema_migrations")
         assert cursor.fetchone()[0] == 6
+
+
+def test_concurrent_fresh_database_migration_runners_are_serialized(db_connection) -> None:
+    """Two fresh-database runners must not execute the same DDL twice."""
+    with db_connection.cursor() as cursor:
+        cursor.execute("DROP SCHEMA public CASCADE")
+        cursor.execute("CREATE SCHEMA public")
+    db_connection.commit()
+
+    database_url = os.environ.get(
+        "DATABASE_URL", "postgresql://opendq:opendq@localhost:5432/opendq"
+    )
+    barrier = Barrier(2)
+
+    def migrate_worker() -> list[str]:
+        with psycopg.connect(database_url, connect_timeout=10) as connection:
+            barrier.wait(timeout=15)
+            return apply_migrations(connection)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(migrate_worker) for _ in range(2)]
+        counts = sorted(len(future.result(timeout=60)) for future in futures)
+
+    assert counts == [0, 6]
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*), count(DISTINCT version), count(checksum) "
+            "FROM public.schema_migrations"
+        )
+        assert cursor.fetchone() == (6, 6, 6)
