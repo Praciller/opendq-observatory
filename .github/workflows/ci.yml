@@ -1,8 +1,16 @@
 name: CI
 
+# Run once for each PR, and on the protected default branch after merge.
+# Avoid the duplicate push + pull_request executions on feature branches.
 on:
   push:
+    branches:
+      - main
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -30,7 +38,7 @@ jobs:
     env:
       DATABASE_URL: postgresql://opendq:opendq@localhost:5432/opendq
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -51,8 +59,8 @@ jobs:
       run:
         working-directory: apps/web
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: npm
@@ -67,3 +75,71 @@ jobs:
         run: npm run typecheck
       - name: Web build
         run: npm run build
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Install locked web dependencies
+        run: npm ci
+      - name: Audit runtime dependencies (high/critical)
+        run: npm audit --omit=dev --audit-level=high
+
+  browser-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: opendq
+          POSTGRES_USER: opendq
+          POSTGRES_PASSWORD: opendq
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U opendq -d opendq"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://opendq:opendq@localhost:5432/opendq
+      NEXT_TELEMETRY_DISABLED: "1"
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install locked web dependencies
+        run: npm ci
+      - name: Install Playwright Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+      - name: Initialize disposable database
+        working-directory: pipeline
+        run: python -m pip install "uv==0.12.7" && uv sync --locked && uv run python -m opendq migrate
+      - name: Build tested web application
+        run: npm run build
+      - name: Test responsive browser UI
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-e2e-failure-artifacts
+          path: apps/web/test-results/
+          retention-days: 3
+          if-no-files-found: ignore

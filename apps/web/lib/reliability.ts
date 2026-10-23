@@ -27,24 +27,24 @@ export type ReliabilitySummary = {
 export type ReliabilityRow = {
   window_start: Date | null;
   window_end: Date | null;
-  pipeline_runs: number;
-  pipeline_successes: number;
-  pipeline_failures: number;
+  pipeline_runs: number | string;
+  pipeline_successes: number | string;
+  pipeline_failures: number | string;
   latest_pipeline_run_at: Date | null;
   latest_successful_ingestion_at: Date | null;
-  quality_runs: number;
-  quality_successes: number;
-  quality_failures: number;
+  quality_runs: number | string;
+  quality_successes: number | string;
+  quality_failures: number | string;
   latest_quality_status: ReliabilityState | null;
   latest_quality_run_at: Date | null;
-  drift_runs: number;
-  drift_successes: number;
-  drift_failures: number;
+  drift_runs: number | string;
+  drift_successes: number | string;
+  drift_failures: number | string;
   latest_drift_status: ReliabilityState | null;
   latest_drift_run_at: Date | null;
-  open_incidents: number;
-  acknowledged_incidents: number;
-  resolved_incidents: number;
+  open_incidents: number | string;
+  acknowledged_incidents: number | string;
+  resolved_incidents: number | string;
 };
 
 function dateValue(value: Date | string | null): string | null {
@@ -95,7 +95,7 @@ export function mapReliabilityRow(row: ReliabilityRow): ReliabilitySummary {
     window: {
       start: dateValue(row.window_start),
       end: dateValue(row.window_end),
-      state: row.pipeline_runs === 0 ? "INSUFFICIENT_HISTORY" : "MEASURED",
+      state: countValue(row.pipeline_runs) === 0 ? "INSUFFICIENT_HISTORY" : "MEASURED",
     },
     execution: {
       pipeline: { ...pipeline, latestSuccessfulIngestionAt: dateValue(row.latest_successful_ingestion_at) },
@@ -148,7 +148,7 @@ export async function getReliability(): Promise<ReliabilitySummary> {
                 count(*) FILTER (WHERE status IN ('SUCCESS', 'NO_CHANGE')) AS successes,
                 count(*) FILTER (WHERE status IN ('FAILED', 'PARTIAL')) AS failures,
                 max(finished_at) AS latest_run_at,
-                max(finished_at) FILTER (WHERE status = 'SUCCESS') AS latest_successful_ingestion_at
+                max(finished_at) FILTER (WHERE status IN ('SUCCESS', 'NO_CHANGE')) AS latest_successful_ingestion_at
          FROM ingestion_runs
          WHERE started_at >= now() - interval '30 days'
        ),

@@ -13,14 +13,14 @@ The reliability surface measures the most recent 30 days of persisted history. T
 | Scheduled pipeline execution | `ingestion_runs` | `SUCCESS` or `NO_CHANGE` | `FAILED` or `PARTIAL` |
 | Quality evaluation execution | `quality_evaluation_runs` | `SUCCESS` | `FAILED` |
 | Drift evaluation execution | `drift_evaluation_runs` | `SUCCESS` or `PARTIAL` | `FAILED` or `NO_BASELINE` |
-| Latest successful ingestion | `ingestion_runs.finished_at` | Latest `SUCCESS` timestamp | Missing/stale timestamp |
+| Latest successful source poll | `ingestion_runs.finished_at` | Latest `SUCCESS` or `NO_CHANGE` timestamp | Missing/stale timestamp |
 | Incident reconciliation | Persisted incident/event state | Incident state transition completes | Runtime error or missing reconciliation |
 | Public API availability | Release-time `GET /api/health` | HTTP 200 with database healthy | Non-200 or degraded response |
 
 ## Objectives
 
 - Scheduled pipeline execution: target at least 99% successful executions over a sufficiently long measured window. The current application does not claim this objective has been met unless the displayed history supports the calculation.
-- Freshness: evaluate against each dataset's existing quality thresholds. Freshness failure is a data-quality outcome and is reported separately from pipeline execution.
+- Freshness: evaluate against each dataset's existing quality thresholds. A `NO_CHANGE` poll is an execution success, not proof that upstream observations advanced; freshness failure is reported separately from pipeline execution.
 - Public API: healthy during release validation; this is a point-in-time release gate, not a historical uptime claim.
 - Incident reconciliation: completed evaluation runs should reconcile without runtime errors. Historical attainment is `INSUFFICIENT_HISTORY` until the required evidence is available.
 
