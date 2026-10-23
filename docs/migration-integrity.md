@@ -63,7 +63,7 @@ committed SQL files, and retain a database backup/recovery plan.
 No migration named `007` is introduced here, to avoid colliding with Phase 7.
 The ledger enhancement is performed by the trusted migration runner.
 
-## Safe release checklist
+## Stage 2 checksum-adoption checklist
 
 1. Review existing production schema and migration versions in read-only mode.
 2. Test the migration runner against a disposable PostgreSQL 16 database in CI.
@@ -75,13 +75,14 @@ The ledger enhancement is performed by the trusted migration runner.
    only for an independently verified legacy ledger, with no pending SQL files.
 6. Confirm a `VERIFIED` read-only preflight result and ordinary idempotent
    `migrate` before resuming normal scheduled ingestion.
-7. Keep this PR Draft until the database and rollout gates are completed.
+7. Keep checksum adoption disabled until database and recovery gates are
+   completed, even if the separate no-schema-change Stage 1 code ships.
 
 Future schema migrations should only be **added**, never edited after application.
 Do not suppress checksum mismatch errors or overwrite production checksums to make
 a failing migration pass. Use a new additive SQL migration to change a schema.
 
-## Production deployment gate (evidence as of 2026-10-24)
+## Stage 2 production adoption gate (evidence as of 2026-10-24)
 
 This section is an **operator checklist**, not authorization for production
 commands. Revalidate every item immediately before the release; the database
