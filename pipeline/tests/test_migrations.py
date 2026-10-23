@@ -1,4 +1,15 @@
-from opendq.storage.migrations import apply_migrations
+import hashlib
+import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
+import psycopg
+import pytest
+from opendq.storage.migrations import (
+    MigrationDriftError,
+    _default_migrations_dir,
+    apply_migrations,
+)
 
 
 def test_migrations_apply_from_empty_database(db_connection) -> None:
@@ -112,3 +123,234 @@ def test_drift_and_rca_indexes_are_present(repository) -> None:
     assert "drift_evaluation_runs_dataset_started_idx" in indexes
     assert "drift_results_dataset_evaluated_idx" in indexes
     assert "root_cause_analyses_incident_created_idx" in indexes
+
+
+def test_schema_migration_checksum_ledger_is_populated(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT version, checksum FROM schema_migrations ORDER BY version")
+        rows = cursor.fetchall()
+    paths = sorted(_default_migrations_dir().glob("*.sql"))
+    assert len(rows) == len(paths)
+    assert rows == [(path.name, hashlib.sha256(path.read_bytes()).hexdigest()) for path in paths]
+    assert apply_migrations(repository.connection) == []
+
+
+def test_migration_checksum_detects_changed_sql(repository, tmp_path) -> None:
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    changed = tmp_path / "006_ai_incident_copilot.sql"
+    changed.write_text(
+        changed.read_text(encoding="utf-8") + "\n-- changed after deployment\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(MigrationDriftError, match="checksum mismatch"):
+        apply_migrations(repository.connection, tmp_path)
+
+
+def test_migration_checksum_detects_missing_applied_file(repository, tmp_path) -> None:
+    for source in _default_migrations_dir().glob("*.sql"):
+        if source.name != "006_ai_incident_copilot.sql":
+            (tmp_path / source.name).write_bytes(source.read_bytes())
+
+    with pytest.raises(MigrationDriftError, match="are missing"):
+        apply_migrations(repository.connection, tmp_path)
+
+
+def test_migration_ledger_adopts_legacy_database_once(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    with pytest.raises(MigrationDriftError, match="explicit reviewed adoption"):
+        apply_migrations(repository.connection)
+    repository.connection.rollback()
+
+    # The rejected unattended run must not change the legacy schema.
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
+        assert cursor.fetchone()[0] == 0
+    repository.connection.commit()
+
+    assert apply_migrations(repository.connection, allow_legacy_checksum_baseline=True) == []
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT count(*) FROM schema_migrations WHERE checksum IS NULL")
+        assert cursor.fetchone()[0] == 0
+    assert apply_migrations(repository.connection) == []
+
+
+def test_legacy_checksum_adoption_blocks_pending_sql(repository, tmp_path) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    for path in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / path.name).write_bytes(path.read_bytes())
+    (tmp_path / "007_future.sql").write_text(
+        "CREATE TABLE unsafe_future_test (id INTEGER);", encoding="utf-8"
+    )
+
+    with pytest.raises(MigrationDriftError, match="pending SQL migrations"):
+        apply_migrations(
+            repository.connection,
+            tmp_path,
+            allow_legacy_checksum_baseline=True,
+        )
+    repository.connection.rollback()
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.unsafe_future_test')")
+        assert cursor.fetchone()[0] is None
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
+        assert cursor.fetchone()[0] == 0
+
+
+def test_migration_ledger_rejects_unexpected_null_checksum(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            "UPDATE schema_migrations SET checksum = NULL "
+            "WHERE version = '006_ai_incident_copilot.sql'"
+        )
+    repository.connection.commit()
+
+    with pytest.raises(MigrationDriftError, match="checksum mismatch"):
+        apply_migrations(repository.connection)
+
+
+def test_migration_failure_rolls_back_all_new_sql(repository, tmp_path) -> None:
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    (tmp_path / "998_test_create.sql").write_text(
+        "CREATE TABLE migration_rollback_probe (id integer);\n", encoding="utf-8"
+    )
+    (tmp_path / "999_test_failure.sql").write_text("SELECT 1 / 0;\n", encoding="utf-8")
+
+    with pytest.raises(psycopg.errors.DivisionByZero):
+        apply_migrations(repository.connection, tmp_path)
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.migration_rollback_probe')")
+        assert cursor.fetchone()[0] is None
+        cursor.execute("SELECT count(*) FROM schema_migrations")
+        assert cursor.fetchone()[0] == 6
+
+
+def test_concurrent_fresh_database_migration_runners_are_serialized(db_connection) -> None:
+    """Two fresh-database runners must not execute the same DDL twice."""
+    with db_connection.cursor() as cursor:
+        cursor.execute("DROP SCHEMA public CASCADE")
+        cursor.execute("CREATE SCHEMA public")
+    db_connection.commit()
+
+    database_url = os.environ.get(
+        "DATABASE_URL", "postgresql://opendq:opendq@localhost:5432/opendq"
+    )
+    barrier = Barrier(2)
+
+    def migrate_worker() -> list[str]:
+        with psycopg.connect(database_url, connect_timeout=10) as connection:
+            barrier.wait(timeout=15)
+            return apply_migrations(connection)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(migrate_worker) for _ in range(2)]
+        counts = sorted(len(future.result(timeout=60)) for future in futures)
+
+    assert counts == [0, 6]
+    with db_connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*), count(DISTINCT version), count(checksum) "
+            "FROM public.schema_migrations"
+        )
+        assert cursor.fetchone() == (6, 6, 6)
+
+
+def test_no_schema_change_accepts_complete_legacy_ledger_without_writing(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")
+        before = cursor.fetchall()
+    assert len(before) == 6
+
+    assert apply_migrations(repository.connection, no_schema_change=True) == []
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")
+        assert cursor.fetchall() == before
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
+        assert cursor.fetchone()[0] == 0
+
+
+def test_no_schema_change_rejects_pending_sql_on_legacy_ledger(repository, tmp_path) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    (tmp_path / "007_future.sql").write_text(
+        "CREATE TABLE must_not_be_created (id integer);", encoding="utf-8"
+    )
+    with pytest.raises(MigrationDriftError, match="forbids unapplied SQL"):
+        apply_migrations(repository.connection, tmp_path, no_schema_change=True)
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.must_not_be_created')")
+        assert cursor.fetchone()[0] is None
+
+
+def test_no_schema_change_rejects_fresh_database(db_connection) -> None:
+    with db_connection.cursor() as cursor:
+        cursor.execute("DROP SCHEMA public CASCADE")
+        cursor.execute("CREATE SCHEMA public")
+    db_connection.commit()
+
+    with pytest.raises(MigrationDriftError, match="forbids unapplied SQL"):
+        apply_migrations(db_connection, no_schema_change=True)
+    with db_connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.schema_migrations')")
+        assert cursor.fetchone()[0] is None
+
+
+def test_no_schema_change_does_not_bypass_checksum_drift(repository, tmp_path) -> None:
+    for source in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / source.name).write_bytes(source.read_bytes())
+    changed = tmp_path / "006_ai_incident_copilot.sql"
+    changed.write_text(
+        changed.read_text(encoding="utf-8") + "\n-- unsafe drift\n", encoding="utf-8"
+    )
+    with pytest.raises(MigrationDriftError, match="checksum mismatch"):
+        apply_migrations(repository.connection, tmp_path, no_schema_change=True)
+
+
+def test_no_schema_change_rejects_unknown_applied_version(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            "INSERT INTO schema_migrations(version, checksum) VALUES (%s, %s)",
+            ("007_unexpected.sql", "not_a_valid_hash"),
+        )
+    repository.connection.commit()
+    with pytest.raises(MigrationDriftError, match="are missing"):
+        apply_migrations(repository.connection, no_schema_change=True)
+
+
+def test_no_schema_change_rejects_checksum_adoption_combo(repository) -> None:
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        apply_migrations(
+            repository.connection,
+            no_schema_change=True,
+            allow_legacy_checksum_baseline=True,
+        )

@@ -7,6 +7,9 @@ from opendq.storage.migrations import _default_migrations_dir
 
 
 def test_legacy_ledger_requires_manual_review_without_schema_changes(repository) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
     result = inspect_migrations(repository.connection)
     assert result.state == "LEGACY_REVIEW_REQUIRED"
     assert result.ledger == "legacy"
@@ -46,13 +49,12 @@ def test_extra_pending_sql_is_reported_without_execution(repository, tmp_path) -
         (tmp_path / path.name).write_bytes(path.read_bytes())
     (tmp_path / "007_new.sql").write_text("-- preflight-only test", encoding="utf-8")
     result = inspect_migrations(repository.connection, tmp_path)
-    assert result.state == "LEGACY_REVIEW_REQUIRED"
+    assert result.state == "PENDING_REVIEW"
     assert result.pending_versions == ["007_new.sql"]
 
 
 def test_checksum_validation_when_ledger_already_has_hashes(repository) -> None:
     with repository.connection.cursor() as cursor:
-        cursor.execute("ALTER TABLE schema_migrations ADD COLUMN checksum TEXT")
         for path in _default_migrations_dir().glob("*.sql"):
             cursor.execute(
                 "UPDATE schema_migrations SET checksum = %s WHERE version = %s",
@@ -88,7 +90,7 @@ def test_inspector_works_in_postgres_read_only_transaction(repository) -> None:
     with connection.transaction():
         connection.execute("SET TRANSACTION READ ONLY")
         report = inspect_migrations(connection)
-        assert report.state == "LEGACY_REVIEW_REQUIRED"
+        assert report.state == "VERIFIED"
         with connection.cursor() as cursor:
             cursor.execute("SHOW transaction_read_only")
             assert cursor.fetchone()[0] == "on"

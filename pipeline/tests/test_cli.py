@@ -65,3 +65,24 @@ def test_cli_exposes_drift_and_rca_commands() -> None:
         "create",
     )
     assert (rca.command, rca.rca_command, rca.incident_id) == ("rca", "show", "incident-id")
+
+
+def test_migration_cli_requires_explicit_legacy_adoption_flag() -> None:
+    normal = build_parser().parse_args(["migrate"])
+    manual = build_parser().parse_args(["migrate", "--adopt-legacy-checksums"])
+
+    assert normal.command == "migrate"
+    assert normal.adopt_legacy_checksums is False
+    assert manual.adopt_legacy_checksums is True
+    assert normal.no_schema_change is False
+    no_schema = build_parser().parse_args(["migrate", "--no-schema-change"])
+    assert no_schema.no_schema_change is True
+    assert no_schema.adopt_legacy_checksums is False
+
+
+def test_migration_cli_prevents_combining_schema_change_modes() -> None:
+    import pytest
+
+    with pytest.raises(SystemExit) as exc_info:
+        build_parser().parse_args(["migrate", "--no-schema-change", "--adopt-legacy-checksums"])
+    assert exc_info.value.code == 2
