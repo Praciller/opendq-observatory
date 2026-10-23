@@ -173,9 +173,7 @@ def test_migration_ledger_adopts_legacy_database_once(repository) -> None:
         assert cursor.fetchone()[0] == 0
     repository.connection.commit()
 
-    assert apply_migrations(
-        repository.connection, allow_legacy_checksum_baseline=True
-    ) == []
+    assert apply_migrations(repository.connection, allow_legacy_checksum_baseline=True) == []
     with repository.connection.cursor() as cursor:
         cursor.execute("SELECT count(*) FROM schema_migrations WHERE checksum IS NULL")
         assert cursor.fetchone()[0] == 0
