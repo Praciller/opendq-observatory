@@ -84,7 +84,5 @@ def test_migration_cli_prevents_combining_schema_change_modes() -> None:
     import pytest
 
     with pytest.raises(SystemExit) as exc_info:
-        build_parser().parse_args(
-            ["migrate", "--no-schema-change", "--adopt-legacy-checksums"]
-        )
+        build_parser().parse_args(["migrate", "--no-schema-change", "--adopt-legacy-checksums"])
     assert exc_info.value.code == 2
