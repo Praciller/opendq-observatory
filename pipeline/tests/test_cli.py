@@ -65,3 +65,12 @@ def test_cli_exposes_drift_and_rca_commands() -> None:
         "create",
     )
     assert (rca.command, rca.rca_command, rca.incident_id) == ("rca", "show", "incident-id")
+
+
+def test_migration_cli_requires_explicit_legacy_adoption_flag() -> None:
+    normal = build_parser().parse_args(["migrate"])
+    manual = build_parser().parse_args(["migrate", "--adopt-legacy-checksums"])
+
+    assert normal.command == "migrate"
+    assert normal.adopt_legacy_checksums is False
+    assert manual.adopt_legacy_checksums is True

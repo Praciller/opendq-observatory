@@ -14,10 +14,23 @@ Each migration's SHA-256 is stored in `schema_migrations.checksum`. Later runs:
 ## Existing production databases
 
 Pre-checksum v1 databases have `schema_migrations(version, applied_at)`.
-On the first invocation, the runner adds a nullable `checksum` column and fills
-checksums for applied versions using the **currently reviewed SQL files**.
-This is a one-time trust-on-first-use adoption. It **cannot prove** that historic
-SQL executed in production matches those files or detect preexisting schema drift.
+Unattended `opendq migrate` now **fails closed** on a legacy ledger with no
+`checksum` column. In particular, the six-hour scheduled ingestion cannot
+silently backfill migration checksums. The only explicit one-time adoption
+path, **after independently reviewing the production schema and ledger and
+arranging a backup/recovery plan**, is:
+
+```sh
+cd pipeline
+uv run python -m opendq migrate --adopt-legacy-checksums
+```
+
+The explicit flag adds a nullable `checksum` column and baselines existing
+versions from the **currently reviewed SQL files**, only if **no new SQL
+migrations are pending**. This trust-on-first-use operation **cannot prove**
+historic SQL matches the repository and must never be used simply to suppress
+drift warnings. If there is no ledger (fresh database), regular `migrate`
+continues to create all tables without this flag.
 Before release, review the production migration versions and schema against the
 committed SQL files, and retain a database backup/recovery plan.
 
@@ -28,9 +41,14 @@ The ledger enhancement is performed by the trusted migration runner.
 
 1. Review existing production schema and migration versions in read-only mode.
 2. Test the migration runner against a disposable PostgreSQL 16 database in CI.
-3. Approve and merge the change independently of in-progress Phase 7 work.
-4. Apply to production only during an approved ingestion/deployment window.
-5. Check the audit output and schema ledger; stop if migration drift is detected.
+3. Reconcile Phase 7 migration filenames and confirm a current production backup.
+4. Plan a coordinated migration window; unattended ingestion will fail closed
+   on an unbaselined legacy ledger if the runner is deployed prematurely.
+5. After **separate explicit owner approval**, apply `--adopt-legacy-checksums`
+   only for an independently verified legacy ledger, with no pending SQL files.
+6. Confirm a `VERIFIED` read-only preflight result and ordinary idempotent
+   `migrate` before resuming normal scheduled ingestion.
+7. Keep this PR Draft until the database and rollout gates are completed.
 
 Future schema migrations should only be **added**, never edited after application.
 Do not suppress checksum mismatch errors or overwrite production checksums to make

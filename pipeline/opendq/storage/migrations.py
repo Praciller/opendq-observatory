@@ -21,13 +21,16 @@ def _default_migrations_dir() -> Path:
 
 
 def apply_migrations(
-    connection: psycopg.Connection[Any], migrations_dir: Path | None = None
+    connection: psycopg.Connection[Any],
+    migrations_dir: Path | None = None,
+    *,
+    allow_legacy_checksum_baseline: bool = False,
 ) -> list[str]:
     """Apply pending SQL atomically; reject changed or missing applied migrations.
 
-    A database created before checksums were introduced receives a one-time
-    checksum baseline for its already-applied migrations. This baseline trusts
-    the current reviewed migration files; it cannot reconstruct historical SQL.
+    A legacy database cannot adopt checksums automatically: its historical SQL
+    provenance must first be independently reviewed. Legacy adoption requires
+    an explicit one-time operator opt-in with no other pending SQL migrations.
     """
     directory = migrations_dir or _default_migrations_dir()
     files = sorted(directory.glob("*.sql"))
@@ -86,9 +89,19 @@ def apply_migrations(
                     raise MigrationDriftError(f"Migration checksum mismatch: {version}")
 
             if has_table and not has_checksum:
-                # Backward-compatible, one-time adoption for existing v1 databases.
-                # If the original SQL differs from current files, manual review of
-                # the historic schema is required; no such claim is inferred here.
+                # Never silently adopt legacy checksums from scheduled ingestion.
+                # The current SQL hashes are NOT evidence of historic SQL execution.
+                if not allow_legacy_checksum_baseline:
+                    raise MigrationDriftError(
+                        "Legacy migration ledger has no checksums; explicit reviewed "
+                        "adoption is required (--adopt-legacy-checksums)"
+                    )
+                pending = sorted(set(sql_files) - set(applied))
+                if pending:
+                    raise MigrationDriftError(
+                        "Cannot adopt legacy checksums with pending SQL migrations: "
+                        + ", ".join(pending)
+                    )
                 cursor.execute("ALTER TABLE public.schema_migrations ADD COLUMN checksum TEXT")
                 for version in sorted(applied):
                     cursor.execute(

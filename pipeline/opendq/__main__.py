@@ -33,7 +33,7 @@ from opendq.rca.repository import RCARepository
 from opendq.rca.service import analyze_incident
 from opendq.sources.open_meteo import OpenMeteoAdapter
 from opendq.sources.usgs import USGSAdapter
-from opendq.storage.migrations import apply_migrations
+from opendq.storage.migrations import MigrationDriftError, apply_migrations
 from opendq.storage.repository import Repository
 
 
@@ -44,7 +44,12 @@ def exit_code_for_results(results: Sequence[IngestionResult]) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="opendq")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("migrate", help="apply pending SQL migrations")
+    migrate = commands.add_parser("migrate", help="apply pending SQL migrations")
+    migrate.add_argument(
+        "--adopt-legacy-checksums",
+        action="store_true",
+        help="explicitly baseline a reviewed legacy ledger, with no pending SQL migrations",
+    )
     ingest = commands.add_parser("ingest", help="ingest one or all public sources")
     ingest.add_argument("source", choices=("open-meteo", "usgs", "all"))
     quality = commands.add_parser("quality", help="evaluate deterministic data quality")
@@ -334,7 +339,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         configure_logging(settings.log_level)
         if args.command == "migrate":
             with psycopg.connect(settings.database_url) as connection:
-                applied = apply_migrations(connection)
+                applied = apply_migrations(
+                    connection,
+                    allow_legacy_checksum_baseline=args.adopt_legacy_checksums,
+                )
             print(json.dumps({"applied": applied}))
             return 0
         if args.command == "quality":
@@ -350,7 +358,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "ai":
             return _ai(settings, args.ai_command, args)
         return asyncio.run(_ingest(settings, args.source))
-    except (ValueError, psycopg.Error) as exc:
+    except (ValueError, psycopg.Error, MigrationDriftError) as exc:
         print(
             json.dumps({"status": "FAILED", "error_code": "CONFIGURATION_OR_DATABASE_ERROR"}),
             file=sys.stderr,

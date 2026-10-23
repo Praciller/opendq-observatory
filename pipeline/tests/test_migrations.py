@@ -159,9 +159,56 @@ def test_migration_ledger_adopts_legacy_database_once(repository) -> None:
         cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
     repository.connection.commit()
 
-    assert apply_migrations(repository.connection) == []
+    with pytest.raises(MigrationDriftError, match="explicit reviewed adoption"):
+        apply_migrations(repository.connection)
+    repository.connection.rollback()
+
+    # The rejected unattended run must not change the legacy schema.
+    with repository.connection.cursor() as cursor:
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
+        assert cursor.fetchone()[0] == 0
+    repository.connection.commit()
+
+    assert apply_migrations(
+        repository.connection, allow_legacy_checksum_baseline=True
+    ) == []
     with repository.connection.cursor() as cursor:
         cursor.execute("SELECT count(*) FROM schema_migrations WHERE checksum IS NULL")
+        assert cursor.fetchone()[0] == 0
+    assert apply_migrations(repository.connection) == []
+
+
+def test_legacy_checksum_adoption_blocks_pending_sql(repository, tmp_path) -> None:
+    with repository.connection.cursor() as cursor:
+        cursor.execute("ALTER TABLE schema_migrations DROP COLUMN checksum")
+    repository.connection.commit()
+
+    for path in _default_migrations_dir().glob("*.sql"):
+        (tmp_path / path.name).write_bytes(path.read_bytes())
+    (tmp_path / "007_future.sql").write_text(
+        "CREATE TABLE unsafe_future_test (id INTEGER);", encoding="utf-8"
+    )
+
+    with pytest.raises(MigrationDriftError, match="pending SQL migrations"):
+        apply_migrations(
+            repository.connection,
+            tmp_path,
+            allow_legacy_checksum_baseline=True,
+        )
+    repository.connection.rollback()
+
+    with repository.connection.cursor() as cursor:
+        cursor.execute("SELECT to_regclass('public.unsafe_future_test')")
+        assert cursor.fetchone()[0] is None
+        cursor.execute(
+            "SELECT count(*) FROM information_schema.columns "
+            "WHERE table_schema = 'public' AND table_name = 'schema_migrations' "
+            "AND column_name = 'checksum'"
+        )
         assert cursor.fetchone()[0] == 0
 
 
