@@ -12,6 +12,10 @@ from opendq.storage.migrations import (
 )
 
 
+def _migration_count() -> int:
+    return len(list(_default_migrations_dir().glob("*.sql")))
+
+
 def test_migrations_apply_from_empty_database(db_connection) -> None:
     with db_connection.cursor() as cursor:
         cursor.execute("DROP SCHEMA public CASCADE")
@@ -27,6 +31,7 @@ def test_migrations_apply_from_empty_database(db_connection) -> None:
         "004_drift_rca.sql",
         "005_reclassify_drift_incidents.sql",
         "006_ai_incident_copilot.sql",
+        "007_ingestion_rca_lookup.sql",
     ]
     with db_connection.cursor() as cursor:
         cursor.execute(
@@ -239,7 +244,7 @@ def test_migration_failure_rolls_back_all_new_sql(repository, tmp_path) -> None:
         cursor.execute("SELECT to_regclass('public.migration_rollback_probe')")
         assert cursor.fetchone()[0] is None
         cursor.execute("SELECT count(*) FROM schema_migrations")
-        assert cursor.fetchone()[0] == 6
+        assert cursor.fetchone()[0] == _migration_count()
 
 
 def test_concurrent_fresh_database_migration_runners_are_serialized(db_connection) -> None:
@@ -263,13 +268,13 @@ def test_concurrent_fresh_database_migration_runners_are_serialized(db_connectio
         futures = [pool.submit(migrate_worker) for _ in range(2)]
         counts = sorted(len(future.result(timeout=60)) for future in futures)
 
-    assert counts == [0, 6]
+    assert counts == [0, _migration_count()]
     with db_connection.cursor() as cursor:
         cursor.execute(
             "SELECT count(*), count(DISTINCT version), count(checksum) "
             "FROM public.schema_migrations"
         )
-        assert cursor.fetchone() == (6, 6, 6)
+        assert cursor.fetchone() == (_migration_count(),) * 3
 
 
 def test_no_schema_change_accepts_complete_legacy_ledger_without_writing(repository) -> None:
@@ -280,7 +285,7 @@ def test_no_schema_change_accepts_complete_legacy_ledger_without_writing(reposit
     with repository.connection.cursor() as cursor:
         cursor.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")
         before = cursor.fetchall()
-    assert len(before) == 6
+    assert len(before) == _migration_count()
 
     assert apply_migrations(repository.connection, no_schema_change=True) == []
 
