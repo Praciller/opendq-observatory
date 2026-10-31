@@ -1,7 +1,9 @@
 import json
+from copy import deepcopy
 
 import httpx
 import pytest
+from opendq.ai.fallback import build_fallback
 from opendq.ai.models import IncidentAIInput
 from opendq.ai.providers.base import AIProviderError
 from opendq.ai.providers.gemini import GeminiProvider
@@ -121,6 +123,73 @@ def test_both_provider_failures_return_attempts_without_raising(monkeypatch) -> 
         "AI_AUTH_ERROR",
         "AI_PROVIDER_UNAVAILABLE",
     ]
+
+
+@pytest.mark.parametrize(
+    ("scenario", "response", "expected_provider", "expected_code"),
+    [
+        ("grounded", "grounded", "groq", None),
+        ("unknown evidence", "unknown-evidence", None, "AI_OUTPUT_VALIDATION_FAILED"),
+        ("quota limit", "quota", None, "AI_RATE_LIMITED"),
+        ("request timeout", "timeout", None, "AI_PROVIDER_TIMEOUT"),
+    ],
+)
+def test_offline_rca_explanation_regression(
+    monkeypatch,
+    scenario: str,
+    response: str,
+    expected_provider: str | None,
+    expected_code: str | None,
+) -> None:
+    """Exercise grounding and provider-failure fallback using transport-only fixtures."""
+    del scenario  # The parameter name documents each row in pytest's case ID.
+    source = _input()
+    rca_before = deepcopy(source.deterministic_rca)
+    input_before = source.to_dict()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if response == "timeout":
+            raise httpx.ReadTimeout("offline timeout", request=request)
+        if response == "quota":
+            return httpx.Response(429, json={"error": "offline quota fixture"})
+        evidence_id = "unknown-evidence:999" if response == "unknown-evidence" else "drift-result:1"
+        explanation = {
+            "summary": "Distribution shift detected.",
+            "probable_cause_explanation": "The supplied drift evidence supports a shift.",
+            "evidence_highlights": [{"evidence_id": evidence_id, "text": "PSI evidence."}],
+            "investigation_steps": ["Inspect the source window."],
+            "uncertainties": [],
+        }
+        return httpx.Response(
+            200,
+            json={
+                "id": "offline-fixture",
+                "choices": [{"message": {"content": json.dumps(explanation)}}],
+            },
+        )
+
+    groq = GroqProvider(
+        api_key="offline-fixture-key",
+        model="offline-fixture-model",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    route = ProviderRouter(groq=groq, gemini=None).explain(
+        source, _settings(monkeypatch, AI_COPILOT_ENABLED="true")
+    )
+
+    assert route.provider == expected_provider
+    if expected_provider:
+        assert route.explanation is not None
+        assert route.explanation.evidence_highlights[0]["evidence_id"] == "drift-result:1"
+    else:
+        assert route.explanation is None
+        assert route.attempts[-1].code == expected_code
+        fallback = build_fallback(source, source.deterministic_rca)
+        assert fallback.evidence_highlights[0]["evidence_id"] == "drift-result:1"
+
+    # Explanation attempts cannot rewrite the deterministic RCA or its evidence input.
+    assert source.deterministic_rca == rca_before
+    assert source.to_dict() == input_before
 
 
 def test_malformed_groq_output_is_rejected_without_response_body() -> None:
