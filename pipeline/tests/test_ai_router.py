@@ -145,7 +145,7 @@ def test_offline_rca_explanation_regression(
     del scenario  # The parameter name documents each row in pytest's case ID.
     source = _input()
     rca_before = deepcopy(source.deterministic_rca)
-    input_before = source.to_dict()
+    input_before = deepcopy(source.to_dict())
 
     def handler(request: httpx.Request) -> httpx.Response:
         if response == "timeout":
