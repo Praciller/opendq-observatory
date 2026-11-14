@@ -24,7 +24,7 @@ export async function checkDatabase(): Promise<boolean> {
     await Promise.race([
       query("SELECT 1"),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("database health check timed out")), 1000);
+        timer = setTimeout(() => reject(new Error("database health check timed out")), 5000);
       }),
     ]);
     return true;

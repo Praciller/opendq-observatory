@@ -46,6 +46,12 @@ def build_fallback(value: IncidentAIInput, deterministic_rca: dict[str, object])
         f"This explanation follows the persisted deterministic RCA result. "
         f"The leading cause is {cause_label}; the AI provider was not used or was unavailable."
     )
+    if cause == "DISTRIBUTION_SHIFT":
+        summary = "A distribution shift was detected against the baseline."
+        explanation = (
+            "PSI indicates a change in distribution but does not establish its underlying cause. "
+            "The AI provider was not used or was unavailable."
+        )
     highlights = []
     for item in [*value.quality_evidence, *value.drift_evidence][:3]:
         if item.get("evidence_id"):
@@ -56,6 +62,8 @@ def build_fallback(value: IncidentAIInput, deterministic_rca: dict[str, object])
                 }
             )
     uncertainties = []
+    if cause == "DISTRIBUTION_SHIFT":
+        uncertainties.append("The cause of the distribution change remains unconfirmed.")
     if confidence in {"LOW", "UNKNOWN"}:
         uncertainties.append(
             "The deterministic RCA confidence is limited; review the evidence before acting."

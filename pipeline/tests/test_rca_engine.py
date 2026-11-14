@@ -41,3 +41,14 @@ def test_timestamp_continuity_rule_maps_to_timestamp_gap_cause() -> None:
     )
 
     assert signal.cause == "TIMESTAMP_GAP"
+
+
+def test_distribution_shift_summary_does_not_claim_underlying_cause() -> None:
+    from opendq.rca.service import _summary
+
+    signal = EvidenceSignal("DRIFT_RESULT", "DISTRIBUTION_SHIFT", 10, "psi_distribution_shift")
+    candidate = rank_root_causes([signal])[0]
+    summary = _summary(candidate, [candidate], {"impacts": []})
+    assert "Detected condition: distribution shift" in summary
+    assert "does not establish the underlying cause" in summary
+    assert "HIGH" not in summary

@@ -9,16 +9,14 @@ import { getDrift } from "../lib/drift";
 import { getIncidents } from "../lib/incidents";
 import { getQualitySummaries } from "../lib/quality";
 import { buildHealthResponse, getSourceStatuses } from "../lib/status";
+import { ageText, currentTime, utcTime } from "../lib/time";
 
 export const dynamic = "force-dynamic";
 
-function dateText(value: string | null): string {
-  return value ? new Date(value).toLocaleString() : "Not recorded";
-}
-
 export default async function Home() {
-  const [health, sources, quality, incidentResponse, drift] = await Promise.all([
-    buildHealthResponse(),
+  const health = await buildHealthResponse();
+  const checkedAt = currentTime();
+  const [sources, quality, incidentResponse, drift] = await Promise.all([
     getSourceStatuses(),
     getQualitySummaries(),
     getIncidents(),
@@ -40,7 +38,7 @@ export default async function Home() {
 
       <Section
         title="Platform state"
-        description="Application availability and database reachability are reported separately."
+        description="The database check tests reachability at page load; persisted evidence reflects earlier runs."
         action={<StatusBadge status={platformStatus} label={health.status === "healthy" ? "Operational" : "Degraded"} />}
         className="overview-state"
       >
@@ -48,11 +46,11 @@ export default async function Home() {
           <div className="state-lead">
             <StatusBadge status={platformStatus} label={health.status === "healthy" ? "Operational" : "Degraded"} />
             <strong>{health.status === "healthy" ? "The observatory is available" : "The observatory is degraded"}</strong>
-            <p className="muted">The dashboard remains read-only; data outcomes below are independent evidence.</p>
+            <p className="muted">Database check completed {utcTime(new Date(checkedAt).toISOString())}. A failed check can also reflect a timeout; it does not establish the cause.</p>
           </div>
           <div className="status-checks" aria-label="Platform checks">
             <div><span>Application</span><StatusBadge status="OPERATIONAL" label="Healthy" /></div>
-            <div><span>Database</span><StatusBadge status={health.database === "healthy" ? "OPERATIONAL" : "UNAVAILABLE"} label={health.database === "healthy" ? "Healthy" : "Unavailable"} /></div>
+            <div><span>Database</span><StatusBadge status={health.database === "healthy" ? "OPERATIONAL" : "UNAVAILABLE"} label={health.database === "healthy" ? "Reachable" : "Check failed"} /></div>
           </div>
         </div>
         <div className="summary-strip" aria-label="Current operational summary">
@@ -67,7 +65,10 @@ export default async function Home() {
         description="Signals that may change the next investigation path, ordered before healthy details."
         action={<Link className="text-link" href="/incidents">Open incident history <Icon name="arrow-right" size={15} /></Link>}
       >
-        {attentionCount === 0 ? (
+        {(incidentResponse.message || drift.message) && <p className="muted">Some signals may be unavailable: {[incidentResponse.message, drift.message].filter(Boolean).join(" ")}</p>}
+        {attentionCount === 0 && (incidentResponse.message || drift.message) ? (
+          <div className="empty-state"><strong>Signal status is unavailable.</strong><span>Do not interpret missing results as a healthy state.</span></div>
+        ) : attentionCount === 0 ? (
           <div className="empty-state empty-success">
             <StatusBadge status="STABLE" label="No active signals" />
             <strong>No active incidents or drift signals were returned.</strong>
@@ -120,8 +121,8 @@ export default async function Home() {
               <div className="signal-list">
                 {sources.sources.map((source) => (
                   <div className="signal-row" key={source.slug}>
-                    <span><strong>{source.name}</strong><small>{source.slug} · {source.lastSuccessfulIngestion ? `Last run ${dateText(source.lastSuccessfulIngestion)}` : "No successful ingestion yet"}</small></span>
-                    <StatusBadge status={source.enabled && source.hasIngestion ? "OPERATIONAL" : "UNKNOWN"} label={source.enabled && source.hasIngestion ? "Healthy" : "Not available"} />
+                    <span><strong>{source.name}</strong><small>{source.slug} · {source.lastSuccessfulIngestion ? `Last successful ingestion ${utcTime(source.lastSuccessfulIngestion)} · ${ageText(source.lastSuccessfulIngestion, checkedAt)}` : "No successful ingestion yet"}</small></span>
+                    <StatusBadge status={source.enabled && source.hasIngestion ? "OPERATIONAL" : "UNKNOWN"} label={source.enabled && source.hasIngestion ? "Recorded" : "Not available"} />
                   </div>
                 ))}
               </div>
@@ -135,7 +136,7 @@ export default async function Home() {
               <div className="signal-list">
                 {quality.datasets.map((dataset) => (
                   <Link className="signal-row" href={`/quality#${dataset.datasetSlug}`} key={dataset.datasetSlug}>
-                    <span><strong>{dataset.datasetName}</strong><small>{dataset.datasetSlug} · {dataset.ruleCounts.evaluated} rules evaluated</small></span>
+                    <span><strong>{dataset.datasetName}</strong><small>{dataset.datasetSlug} · {dataset.ruleCounts.evaluated} rules evaluated · Evaluated {utcTime(dataset.evaluatedAt)} ({ageText(dataset.evaluatedAt, checkedAt)})</small></span>
                     <span className="signal-value"><StatusBadge status={dataset.status} /><strong>{dataset.score === null ? "No score" : `${dataset.score.toFixed(1)} / 100`}</strong></span>
                   </Link>
                 ))}

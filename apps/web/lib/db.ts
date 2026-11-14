@@ -9,7 +9,7 @@ export function getPool(): Sql {
     throw new Error("DATABASE_URL is not configured");
   }
   client ??= postgres(databaseUrl, {
-    connect_timeout: 1,
+    connect_timeout: 5,
     idle_timeout: 10,
     max: 2,
   });
