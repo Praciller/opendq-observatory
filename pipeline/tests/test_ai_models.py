@@ -80,3 +80,21 @@ def test_ai_explanation_rejects_unknown_evidence_ids() -> None:
             },
             allowed_evidence_ids={"drift-result:12"},
         )
+
+
+def test_distribution_shift_fallback_identifies_causal_uncertainty() -> None:
+    from opendq.ai.fallback import build_fallback
+
+    evidence = IncidentAIInput.from_parts(
+        incident={"kind": "DATA_DRIFT", "severity": "HIGH", "status": "OPEN", "dataset": "test"},
+        deterministic_rca={"top_cause": "DISTRIBUTION_SHIFT", "confidence": "HIGH"},
+        quality_evidence=[],
+        drift_evidence=[],
+        lineage_impact=[],
+        timeline=[],
+        max_chars=500,
+    )
+    result = build_fallback(evidence, {"top_cause": "DISTRIBUTION_SHIFT", "confidence": "HIGH"})
+    assert "does not establish" in result.probable_cause_explanation
+    assert result.uncertainties
+    assert "confidence" not in result.summary

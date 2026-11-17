@@ -1,3 +1,4 @@
+import { utcTime } from "../lib/time";
 import { StatusBadge } from "./status-badge";
 
 type TimelineEvent = {
@@ -19,7 +20,7 @@ export function Timeline({ events }: { events: TimelineEvent[] }) {
           <div className="timeline-body">
             <div className="timeline-heading">
               <strong>{event.eventType.replaceAll("_", " ")}</strong>
-              <time dateTime={event.createdAt}>{new Date(event.createdAt).toLocaleString()}</time>
+              <time dateTime={event.createdAt}>{utcTime(event.createdAt)}</time>
             </div>
             <p>{event.message}</p>
             <div className="timeline-meta">

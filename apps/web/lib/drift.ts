@@ -19,6 +19,7 @@ export type DriftResult = {
 };
 
 export type DriftResponse = { dataset: string; results: DriftResult[]; message?: string };
+export const DRIFT_UNAVAILABLE = "Drift data is unavailable.";
 
 type DriftRow = {
   id: number;
@@ -99,6 +100,6 @@ export async function getDrift(dataset?: string): Promise<DriftResponse> {
       runs[0]?.status === "NO_BASELINE" ? "Insufficient baseline data." : "No drift evaluation has been recorded yet.",
     );
   } catch {
-    return driftEmptyState(normalized, "Drift data is unavailable.");
+    return driftEmptyState(normalized, DRIFT_UNAVAILABLE);
   }
 }

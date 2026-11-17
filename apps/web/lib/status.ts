@@ -19,19 +19,11 @@ export type SourcesResponse = {
 };
 
 export async function checkDatabase(): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      query("SELECT 1"),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("database health check timed out")), 1000);
-      }),
-    ]);
+    await query("SELECT 1");
     return true;
   } catch {
     return false;
-  } finally {
-    if (timer) clearTimeout(timer);
   }
 }
 

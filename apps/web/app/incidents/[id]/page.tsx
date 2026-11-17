@@ -10,6 +10,7 @@ import { Timeline } from "../../../components/timeline";
 import { getAiAnalysis } from "../../../lib/ai";
 import { getIncident, type Incident } from "../../../lib/incidents";
 import { getRca, type RCAAnalysis } from "../../../lib/rca";
+import { utcTime } from "../../../lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
   const rcaResponse = await getRca(id);
   const aiResponse = await getAiAnalysis(id);
   const incident = response.incident;
+  const distributionShift = rcaResponse.analysis?.topCause === "DISTRIBUTION_SHIFT";
 
   return (
     <main className="shell" id="main-content">
@@ -58,25 +60,25 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
               </div>
               <div className="incident-summary-metrics">
                 <Metric label="Occurrences" value={incident.occurrenceCount.toLocaleString()} detail="Persisted observations" />
-                <Metric label="Last seen" value={<time dateTime={incident.lastSeenAt}>{new Date(incident.lastSeenAt).toLocaleDateString()}</time>} detail={new Date(incident.lastSeenAt).toLocaleTimeString()} />
+                <Metric label="Last seen" value={<time dateTime={incident.lastSeenAt}>{utcTime(incident.lastSeenAt)}</time>} detail="UTC · persisted observation" />
               </div>
             </div>
             <dl className="evidence-list summary-evidence">
-              <div className="evidence-row"><dt>Opened</dt><dd><strong><time dateTime={incident.openedAt}>{new Date(incident.openedAt).toLocaleString()}</time></strong></dd></div>
+              <div className="evidence-row"><dt>Opened</dt><dd><strong><time dateTime={incident.openedAt}>{utcTime(incident.openedAt)}</time></strong></dd></div>
               <div className="evidence-row"><dt>Incident key</dt><dd><strong><code>{incident.incidentKey}</code></strong></dd></div>
-              {incident.acknowledgedAt && <div className="evidence-row"><dt>Acknowledged</dt><dd><strong><time dateTime={incident.acknowledgedAt}>{new Date(incident.acknowledgedAt).toLocaleString()}</time></strong></dd></div>}
-              {incident.resolvedAt && <div className="evidence-row"><dt>Resolved</dt><dd><strong><time dateTime={incident.resolvedAt}>{new Date(incident.resolvedAt).toLocaleString()}</time></strong></dd></div>}
+              {incident.acknowledgedAt && <div className="evidence-row"><dt>Acknowledged</dt><dd><strong><time dateTime={incident.acknowledgedAt}>{utcTime(incident.acknowledgedAt)}</time></strong></dd></div>}
+              {incident.resolvedAt && <div className="evidence-row"><dt>Resolved</dt><dd><strong><time dateTime={incident.resolvedAt}>{utcTime(incident.resolvedAt)}</time></strong></dd></div>}
             </dl>
           </Section>
 
-          <Section title="Deterministic root cause" description="A ranked explanation derived from persisted evidence. It is authoritative for this view; optional AI is shown later." action={<span className="section-note">No AI inference</span>}>
+          <Section title="Deterministic investigation" description="Ranked signals derived from persisted evidence; these are not proof of an underlying cause." action={<span className="section-note">No AI inference</span>}>
             {!rcaResponse.analysis ? (
               <div className="empty-state"><strong>{rcaResponse.message ?? "No RCA analysis is available."}</strong><span>Analysis is created when an incident is opened or meaningfully updated.</span></div>
             ) : (
               <div className="rca-content">
                 <div className="rca-lead">
-                  <div><span className="field-label">Top ranked cause</span><strong>{rcaResponse.analysis.topCause.replaceAll("_", " ")}</strong></div>
-                  <span className={`confidence confidence-${rcaResponse.analysis.confidence.toLowerCase()}`}>{rcaResponse.analysis.confidence} confidence</span>
+                  <div><span className="field-label">Top ranked signal</span><strong>{rcaResponse.analysis.topCause.replaceAll("_", " ")}</strong></div>
+                  <span className="section-note">Rule-based ranking · not a calibrated probability</span>
                   <p className="body-copy">{rcaResponse.analysis.summary}</p>
                 </div>
                 {candidatesFrom(rcaResponse.analysis.details).length > 0 && (
@@ -85,7 +87,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
                     <div className="candidate-list">
                       {candidatesFrom(rcaResponse.analysis.details).map((candidate) => (
                         <div className="candidate-row" key={`${candidate.rank}-${candidate.cause}`}>
-                          <span><strong>#{candidate.rank} {candidate.cause.replaceAll("_", " ")}</strong><small>{candidate.confidence} confidence</small></span>
+                          <span><strong>#{candidate.rank} {candidate.cause.replaceAll("_", " ")}</strong><small>Rule-based signal</small></span>
                           <code>score {candidate.score}</code>
                         </div>
                       ))}
@@ -105,7 +107,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
                     </div>
                   </div>
                 )}
-                <p className="quiet-note">Algorithm {rcaResponse.analysis.algorithmVersion} · fingerprint {rcaResponse.analysis.evidenceFingerprint.slice(0, 12)}… · created {new Date(rcaResponse.analysis.createdAt).toLocaleString()}</p>
+                <p className="quiet-note">Algorithm {rcaResponse.analysis.algorithmVersion} · fingerprint {rcaResponse.analysis.evidenceFingerprint.slice(0, 12)}… · created {utcTime(rcaResponse.analysis.createdAt)}</p>
               </div>
             )}
           </Section>
@@ -134,16 +136,20 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
             <Timeline events={incident.events} />
           </Section>
 
-          <Section title="AI Incident Copilot" description="Optional explanatory context based on the same persisted evidence. It cannot change incident state." action={<span className="section-note">Optional · non-authoritative</span>}>
+          <Section title="AI Incident Copilot" description="Optional context from a saved analysis and its evidence snapshot." action={<span className="section-note">Optional · non-authoritative</span>}>
             {!aiResponse.analysis ? (
               <div className="empty-state"><strong>{aiResponse.message ?? "No AI incident explanation is available."}</strong><span>This page never triggers inference; only a persisted analysis is shown.</span></div>
             ) : (
               <div className="ai-content">
                 <div className="ai-status-row"><StatusBadge status={aiResponse.analysis.status} /><span className="muted">{aiResponse.analysis.provider} · {aiResponse.analysis.model}</span></div>
-                <div className="ai-copy"><strong>{aiResponse.analysis.explanation.summary}</strong><p>{aiResponse.analysis.explanation.probableCauseExplanation}</p></div>
+                {!aiResponse.analysis.deterministicRcaAnalysisId || !rcaResponse.analysis
+                  ? <p className="muted">Current RCA provenance is unavailable.</p>
+                  : aiResponse.analysis.deterministicRcaAnalysisId !== rcaResponse.analysis.id &&
+                    <p className="muted">Different RCA record · this explanation uses a different evidence snapshot.</p>}
+                <div className="ai-copy"><span className="field-label">{aiResponse.analysis.status === "SUCCESS" ? "Provider hypothesis" : aiResponse.analysis.status === "FALLBACK" ? "Saved deterministic fallback" : "Saved explanation"}</span><strong>{aiResponse.analysis.explanation.summary}</strong><p>{aiResponse.analysis.explanation.probableCauseExplanation}</p></div>
                 {aiResponse.analysis.explanation.evidenceHighlights.length > 0 && <div><h3>Evidence highlights</h3><div className="signal-list">{aiResponse.analysis.explanation.evidenceHighlights.map((item) => <div className="signal-row" key={item.evidenceId}><span><strong>{item.evidenceId}</strong><small>{item.text}</small></span></div>)}</div></div>}
-                <div className="ai-columns"><div><h3>Suggested investigation</h3><ol>{aiResponse.analysis.explanation.investigationSteps.map((step) => <li key={step}>{step}</li>)}</ol></div><div><h3>Uncertainties</h3>{aiResponse.analysis.explanation.uncertainties.length === 0 ? <p className="muted">No additional uncertainties recorded.</p> : <ul>{aiResponse.analysis.explanation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>}</div></div>
-                <p className="quiet-note">Prompt {aiResponse.analysis.promptVersion} · generated {new Date(aiResponse.analysis.createdAt).toLocaleString()} · {aiResponse.analysis.cacheHit ? "cache hit" : "new analysis"}</p>
+                <div className="ai-columns"><div><h3>Suggested investigation</h3><ol>{aiResponse.analysis.explanation.investigationSteps.map((step) => <li key={step}>{step}</li>)}</ol></div><div><h3>Uncertainties</h3>{distributionShift && <p>Current deterministic evidence: PSI does not establish the cause of the change.</p>}{aiResponse.analysis.explanation.uncertainties.length === 0 ? <p className="muted">No additional uncertainties recorded.</p> : <ul>{aiResponse.analysis.explanation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>}</div></div>
+                <p className="quiet-note">Prompt {aiResponse.analysis.promptVersion} · generated {utcTime(aiResponse.analysis.createdAt)} · {aiResponse.analysis.cacheHit ? "cache hit" : "saved analysis"}</p>
               </div>
             )}
           </Section>

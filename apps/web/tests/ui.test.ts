@@ -37,7 +37,7 @@ test("the overview keeps operational priority before dataset health and investig
 
 test("incident detail keeps deterministic evidence ahead of lifecycle and optional AI", () => {
   const detail = source("app/incidents/[id]/page.tsx");
-  assert.equal(order(detail, ["title=\"Incident summary\"", "title=\"Deterministic root cause\"", "title=\"Evidence\"", "title=\"Blast radius\"", "title=\"Lifecycle\"", "title=\"AI Incident Copilot\""]), true);
+  assert.equal(order(detail, ["title=\"Incident summary\"", "title=\"Deterministic investigation\"", "title=\"Evidence\"", "title=\"Blast radius\"", "title=\"Lifecycle\"", "title=\"AI Incident Copilot\""]), true);
   assert.match(detail, /<EvidenceList record={incident\.evidence} \/>/);
   assert.match(detail, /<RawEvidence value={incident\.evidence} \/>/);
 });

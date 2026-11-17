@@ -15,6 +15,7 @@ export type AIAnalysis = {
   incidentId: string;
   provider: string;
   model: string;
+  deterministicRcaAnalysisId: string | null;
   promptVersion: string;
   status: "SUCCESS" | "FALLBACK" | "FAILED" | "SKIPPED";
   explanation: AIExplanation;
@@ -40,6 +41,8 @@ export function mapAIAnalysisRow(row: {
   incident_id: string;
   provider: string;
   model: string;
+  deterministic_rca_analysis_id?: string | null;
+  rca_top_cause?: string | null;
   prompt_version: string;
   status: AIAnalysis["status"];
   summary: string;
@@ -66,19 +69,40 @@ export function mapAIAnalysisRow(row: {
     : [];
   const strings = (value: unknown): string[] =>
     Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  const fallback = row.status === "FALLBACK";
+  const legacyShift = row.rca_top_cause == null &&
+    row.probable_cause_explanation === "This explanation follows the persisted deterministic RCA result. The leading cause is distribution shift; the AI provider was not used or was unavailable.";
+  const driftFallback = fallback && (row.rca_top_cause === "DISTRIBUTION_SHIFT" || legacyShift);
+  const savedExplanation = fallback
+    ? row.probable_cause_explanation.replace(
+      /^This explanation follows the persisted deterministic RCA result\. The leading cause is /,
+      "This explanation follows the persisted deterministic RCA result. The leading rule-based signal is ",
+    )
+    : row.probable_cause_explanation;
+  const uncertainties = strings(row.uncertainties_json);
+  if (driftFallback && !uncertainties.includes("The cause of the distribution change remains unconfirmed.")) {
+    uncertainties.push("The cause of the distribution change remains unconfirmed.");
+  }
   return {
     id: row.id,
     incidentId: row.incident_id,
     provider: row.provider,
     model: row.model,
+    deterministicRcaAnalysisId: row.deterministic_rca_analysis_id ?? null,
     promptVersion: row.prompt_version,
     status: row.status,
     explanation: {
-      summary: row.summary,
-      probableCauseExplanation: row.probable_cause_explanation,
+      summary: driftFallback
+        ? "A distribution shift was detected against the baseline."
+        : fallback
+          ? row.summary.replace(/ as the leading explanation with (?:high|medium|low|unknown) confidence\.$/, " as the leading rule-based signal.")
+          : row.summary,
+      probableCauseExplanation: driftFallback
+        ? "PSI indicates a change in distribution but does not establish its underlying cause. The AI provider was not used or was unavailable."
+        : savedExplanation,
       evidenceHighlights: highlights,
       investigationSteps: strings(row.investigation_steps_json),
-      uncertainties: strings(row.uncertainties_json),
+      uncertainties,
     },
     latencyMs: Number(row.latency_ms),
     inputSize: Number(row.input_size),
@@ -98,13 +122,16 @@ export async function getAiAnalysis(incidentId: string): Promise<AIResponse> {
   if (!/^[0-9a-f-]{36}$/i.test(incidentId)) return { analysis: null, message: "AI analysis not found." };
   try {
     const rows = await queryValues<Parameters<typeof mapAIAnalysisRow>[0]>(
-      `SELECT id, incident_id, provider, model, prompt_version, status,
-              summary, probable_cause_explanation, evidence_highlights_json,
-              investigation_steps_json, uncertainties_json, latency_ms, input_size,
-              output_size, provider_request_id, cache_hit, attempts_json,
-              error_code, error_message, created_at
-       FROM ai_incident_analyses
-       WHERE incident_id = $1::uuid ORDER BY created_at DESC LIMIT 1`,
+      `SELECT ai.id, ai.incident_id, ai.provider, ai.model, ai.prompt_version, ai.status,
+              ai.summary, ai.probable_cause_explanation, ai.evidence_highlights_json,
+              ai.investigation_steps_json, ai.uncertainties_json, ai.latency_ms, ai.input_size,
+              ai.output_size, ai.provider_request_id, ai.cache_hit, ai.attempts_json,
+              ai.error_code, ai.error_message, ai.created_at, rca.id AS deterministic_rca_analysis_id,
+              rca.top_cause AS rca_top_cause
+       FROM ai_incident_analyses ai
+       LEFT JOIN root_cause_analyses rca ON rca.id = ai.deterministic_rca_analysis_id
+                                     AND rca.incident_id = ai.incident_id
+       WHERE ai.incident_id = $1::uuid ORDER BY ai.created_at DESC LIMIT 1`,
       [incidentId],
     );
     if (rows.length === 0) return { analysis: null, message: "No AI incident explanation is available." };

@@ -111,9 +111,14 @@ def _signals(repository: RCARepository, context: dict[str, Any]) -> list[Evidenc
 def _summary(top: Any, candidates: list[Any], context: dict[str, Any]) -> str:
     evidence_lines = [signal.reason_code.replace("_", " ").lower() for signal in top.evidence]
     evidence = "; ".join(evidence_lines) if evidence_lines else "no supporting evidence"
+    if top.cause == "DISTRIBUTION_SHIFT":
+        return (
+            "Detected condition: distribution shift. PSI does not establish the underlying "
+            f"cause. Evidence: {evidence}. Affected downstream assets: {len(context['impacts'])}."
+        )
     return (
-        f"Probable cause: {top.cause.replace('_', ' ').lower()}. "
-        f"Evidence: {evidence}. Confidence: {top.confidence}. "
+        f"Leading signal: {top.cause.replace('_', ' ').lower()}. "
+        f"Evidence: {evidence}. Rule-based ranking: {top.confidence}. "
         f"Affected downstream assets: {len(context['impacts'])}."
     )
 
