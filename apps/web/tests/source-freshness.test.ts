@@ -36,19 +36,20 @@ test("healthy recency uses the last successful poll, not a dataset event timesta
 
 test("stale poll degrades health even when database connectivity works", () => {
   const summary = evaluatePollReadiness(
-    { sources: [source("2026-10-21T12:00:00Z")] },
+    { sources: [source("2026-10-21T23:00:00Z")] },
     true,
     now,
   );
   assert.equal(summary.status, "degraded");
   assert.equal(summary.sources[0].state, "STALE");
+  assert.equal(summary.sources[0].ageHours, 13);
 });
 
 test("unknown history and invalid timestamps never count as healthy", () => {
-  for (const timestamp of [null, "not-a-date", "2026-10-23T00:00:00Z"]) {
+  for (const [timestamp, state] of [[null, "NO_HISTORY"], ["not-a-date", "INVALID_TIME"], ["2026-10-23T00:00:00Z", "INVALID_TIME"]]) {
     const summary = evaluatePollReadiness({ sources: [source(timestamp)] }, true, now);
     assert.equal(summary.status, "degraded");
-    assert.ok(["NO_HISTORY", "INVALID_TIME"].includes(summary.sources[0].state));
+    assert.equal(summary.sources[0].state, state);
   }
 });
 

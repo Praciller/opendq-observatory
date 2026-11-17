@@ -29,6 +29,16 @@ function dateValue(value: Date | string): string {
   return new Date(value).toISOString();
 }
 
+export function readRcaSummary(summary: string): string {
+  if (!summary.startsWith("Probable cause: ")) return summary;
+  if (summary.startsWith("Probable cause: distribution shift.")) {
+    return summary
+      .replace(/^Probable cause: distribution shift\./, "Detected condition: distribution shift. PSI does not establish the underlying cause.")
+      .replace(/\. Confidence: (HIGH|MEDIUM|LOW|UNKNOWN)\./, ".");
+  }
+  return summary.replace(/^Probable cause:/, "Leading signal:").replace(/\. Confidence: /, ". Rule-based ranking: ");
+}
+
 export async function getRca(incidentId: string): Promise<RCAResponse> {
   if (!/^[0-9a-f-]{36}$/i.test(incidentId)) return { analysis: null, message: "RCA analysis not found." };
   try {
@@ -62,7 +72,7 @@ export async function getRca(incidentId: string): Promise<RCAResponse> {
         confidence: row.confidence,
         algorithmVersion: row.algorithm_version,
         evidenceFingerprint: row.evidence_fingerprint,
-        summary: row.summary,
+        summary: readRcaSummary(row.summary),
         details: row.details_json,
         createdAt: dateValue(row.created_at),
         evidence: evidence.map((item) => ({

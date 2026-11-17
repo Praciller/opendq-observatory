@@ -79,7 +79,7 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
                 <div className="rca-lead">
                   <div><span className="field-label">Top ranked signal</span><strong>{rcaResponse.analysis.topCause.replaceAll("_", " ")}</strong></div>
                   <span className="section-note">Rule-based ranking · not a calibrated probability</span>
-                  <p className="body-copy">{distributionShift ? "A distribution change was detected against the baseline. PSI alone does not identify why it changed; investigate source, sampling, and pipeline changes." : rcaResponse.analysis.summary}</p>
+                  <p className="body-copy">{rcaResponse.analysis.summary}</p>
                 </div>
                 {candidatesFrom(rcaResponse.analysis.details).length > 0 && (
                   <div className="rca-candidates">
@@ -136,16 +136,20 @@ export default async function IncidentDetailPage({ params }: { params: Promise<{
             <Timeline events={incident.events} />
           </Section>
 
-          <Section title="AI Incident Copilot" description="Optional explanatory context based on the same persisted evidence. It cannot change incident state." action={<span className="section-note">Optional · non-authoritative</span>}>
+          <Section title="AI Incident Copilot" description="Optional context from a saved analysis and its evidence snapshot." action={<span className="section-note">Optional · non-authoritative</span>}>
             {!aiResponse.analysis ? (
               <div className="empty-state"><strong>{aiResponse.message ?? "No AI incident explanation is available."}</strong><span>This page never triggers inference; only a persisted analysis is shown.</span></div>
             ) : (
               <div className="ai-content">
                 <div className="ai-status-row"><StatusBadge status={aiResponse.analysis.status} /><span className="muted">{aiResponse.analysis.provider} · {aiResponse.analysis.model}</span></div>
-                <div className="ai-copy">{distributionShift ? <p>Distribution shift is a detected condition. The underlying cause has not been established from PSI alone.</p> : <><strong>{aiResponse.analysis.explanation.summary}</strong><p>{aiResponse.analysis.explanation.probableCauseExplanation}</p></>}</div>
+                {!aiResponse.analysis.deterministicRcaAnalysisId || !rcaResponse.analysis
+                  ? <p className="muted">Current RCA provenance is unavailable.</p>
+                  : aiResponse.analysis.deterministicRcaAnalysisId !== rcaResponse.analysis.id &&
+                    <p className="muted">Different RCA record · this explanation uses a different evidence snapshot.</p>}
+                <div className="ai-copy"><span className="field-label">{aiResponse.analysis.status === "SUCCESS" ? "Provider hypothesis" : aiResponse.analysis.status === "FALLBACK" ? "Saved deterministic fallback" : "Saved explanation"}</span><strong>{aiResponse.analysis.explanation.summary}</strong><p>{aiResponse.analysis.explanation.probableCauseExplanation}</p></div>
                 {aiResponse.analysis.explanation.evidenceHighlights.length > 0 && <div><h3>Evidence highlights</h3><div className="signal-list">{aiResponse.analysis.explanation.evidenceHighlights.map((item) => <div className="signal-row" key={item.evidenceId}><span><strong>{item.evidenceId}</strong><small>{item.text}</small></span></div>)}</div></div>}
-                <div className="ai-columns"><div><h3>Suggested investigation</h3><ol>{aiResponse.analysis.explanation.investigationSteps.map((step) => <li key={step}>{step}</li>)}</ol></div><div><h3>Uncertainties</h3>{distributionShift && <p>PSI does not identify the cause of the change.</p>}{aiResponse.analysis.explanation.uncertainties.length === 0 ? <p className="muted">No additional uncertainties recorded.</p> : <ul>{aiResponse.analysis.explanation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>}</div></div>
-                <p className="quiet-note">Prompt {aiResponse.analysis.promptVersion} · generated {utcTime(aiResponse.analysis.createdAt)} · {aiResponse.analysis.cacheHit ? "cache hit" : "new analysis"}</p>
+                <div className="ai-columns"><div><h3>Suggested investigation</h3><ol>{aiResponse.analysis.explanation.investigationSteps.map((step) => <li key={step}>{step}</li>)}</ol></div><div><h3>Uncertainties</h3>{distributionShift && <p>Current deterministic evidence: PSI does not establish the cause of the change.</p>}{aiResponse.analysis.explanation.uncertainties.length === 0 ? <p className="muted">No additional uncertainties recorded.</p> : <ul>{aiResponse.analysis.explanation.uncertainties.map((item) => <li key={item}>{item}</li>)}</ul>}</div></div>
+                <p className="quiet-note">Prompt {aiResponse.analysis.promptVersion} · generated {utcTime(aiResponse.analysis.createdAt)} · {aiResponse.analysis.cacheHit ? "cache hit" : "saved analysis"}</p>
               </div>
             )}
           </Section>
