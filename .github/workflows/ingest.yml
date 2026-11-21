@@ -51,7 +51,7 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: steps.freshness.outputs.skip != 'true'
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         if: steps.freshness.outputs.skip != 'true'
         with:
           python-version: "3.12"
