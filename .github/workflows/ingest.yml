@@ -3,7 +3,13 @@ name: Scheduled public ingestion
 on:
   schedule:
     - cron: "17 */6 * * *"
+    - cron: "47 1-23/3 * * *"
   workflow_dispatch:
+    inputs:
+      run_explanations:
+        description: Generate bounded incident explanations after ingestion
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -24,11 +30,33 @@ jobs:
       GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-20b' }}
       GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.5-flash-lite' }}
     steps:
+      - name: Skip fallback when both sources were polled recently
+        id: freshness
+        if: github.event.schedule == '47 1-23/3 * * *'
+        shell: bash
+        run: |
+          readiness="$(curl --fail --silent --show-error --max-time 15 \
+            https://opendq-observatory.vercel.app/api/readiness)" || readiness=''
+          if jq -e '
+            .status == "healthy" and
+            (.sources | map(select(
+              .enabled == true and .state == "CURRENT" and
+              (.ageHours | type == "number" and . >= 0 and . < 6)
+            ) | .slug) | sort == ["open-meteo", "usgs-earthquakes"])
+          ' <<< "$readiness" > /dev/null; then
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+            echo 'Both public sources were polled less than six hours ago.'
+          else
+            echo 'Freshness check did not prove a recent poll for both sources; ingesting.'
+          fi
       - uses: actions/checkout@v7
+        if: steps.freshness.outputs.skip != 'true'
       - uses: actions/setup-python@v6
+        if: steps.freshness.outputs.skip != 'true'
         with:
           python-version: "3.12"
       - name: Require production database secret
+        if: steps.freshness.outputs.skip != 'true'
         shell: bash
         run: |
           if [ -z "${DATABASE_URL}" ]; then
@@ -36,17 +64,22 @@ jobs:
             exit 1
           fi
       - name: Install pipeline
+        if: steps.freshness.outputs.skip != 'true'
         working-directory: pipeline
         run: python -m pip install "uv==0.12.7" && uv sync --locked
       - name: Apply migrations
+        if: steps.freshness.outputs.skip != 'true'
         working-directory: pipeline
         run: uv run python -m opendq migrate --no-schema-change
       - name: Seed production lineage
+        if: steps.freshness.outputs.skip != 'true'
         working-directory: pipeline
         run: uv run python -m opendq lineage seed
       - name: Ingest sources, evaluate quality, drift, incidents, and RCA
+        if: steps.freshness.outputs.skip != 'true'
         working-directory: pipeline
         run: uv run python -m opendq ingest all
       - name: Generate bounded incident explanations
+        if: github.event.schedule != '47 1-23/3 * * *' && (github.event_name != 'workflow_dispatch' || inputs.run_explanations)
         working-directory: pipeline
         run: uv run python -m opendq ai analyze-open --limit 3
