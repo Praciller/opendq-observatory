@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from asyncio import sleep
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -35,18 +36,19 @@ class OpenMeteoAdapter:
         self.longitude = longitude
 
     async def fetch(self) -> dict[str, Any]:
+        params: dict[str, str | int | float] = {
+            "latitude": self.latitude,
+            "longitude": self.longitude,
+            "hourly": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
+            "forecast_days": 1,
+            "timezone": "UTC",
+        }
         try:
-            response = await self.client.get(
-                self.base_url,
-                params={
-                    "latitude": self.latitude,
-                    "longitude": self.longitude,
-                    "hourly": "temperature_2m,relative_humidity_2m,precipitation,wind_speed_10m",
-                    "forecast_days": 1,
-                    "timezone": "UTC",
-                },
-                timeout=10,
-            )
+            try:
+                response = await self.client.get(self.base_url, params=params, timeout=10)
+            except httpx.TimeoutException:
+                await sleep(1)
+                response = await self.client.get(self.base_url, params=params, timeout=10)
         except httpx.TimeoutException as exc:
             raise IngestionError(ErrorCode.SOURCE_TIMEOUT, "Open-Meteo request timed out") from exc
         except httpx.HTTPError as exc:
